@@ -1,0 +1,22 @@
+[package]
+name = "coppervox_voxels"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+bevy = "0.12"
+num = "0.4"
+nd_vec = "0.4"
+ndarray = "0.15"
+ndshape = "0.3"
+nalgebra = "0.32"
+slab_tree = "0.3"
+block-mesh = "0.2"
+dot_vox = "4.1"
+image = "0.24"
+disjoint-hash-set = "1.0"
+petgraph = "0.6"
+bitvec= "1"
+fxhash = "0.2"
+seq-macro = "0.3"
