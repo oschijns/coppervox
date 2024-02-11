@@ -1,0 +1,9 @@
+[package]
+name = "coppervox_logic"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+bevy = "0.12"
+bitset-core = "0.1"

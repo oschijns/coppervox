@@ -2,3 +2,14 @@
 name = "coppervox"
 version = "0.1.0"
 edition = "2021"
+
+
+[workspace]
+members = [
+    "lib/*",
+]
+
+
+[dependencies]
+bevy = "0.12"
+coppervox_logic = { path = "lib/coppervox_logic" }
