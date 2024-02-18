@@ -9,6 +9,9 @@ pub struct Island<V> {
     /// bounding box of the island
     pub bounding_box: VoxBox,
 
+    /// the number of voxels in this island
+    pub count: usize,
+
     /// hash of the pattern identified for this island
     pub pattern_id: PatternId,
 }
@@ -25,6 +28,7 @@ impl<V: Copy> Island<V> {
                 // set ending point to min coordinates
                 [isize::MIN, isize::MIN, isize::MIN],
             ],
+            count: 0,
             pattern_id: Default::default(),
         }
     }

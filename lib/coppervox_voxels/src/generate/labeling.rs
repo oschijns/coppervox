@@ -11,16 +11,30 @@ use disjoint_hash_set::DisjointHashSet;
 use ndarray::Array3;
 use std::{cmp::min, collections::HashMap};
 
+/// The result of labeling a voxel model for rendering and logic circuit generation
+pub struct LabelingResult<L, const D: usize, V> {
+    /// the voxel model of labeled islands
+    pub labeled_model: VoxModel<L, D>,
+
+    /// the mapping between labels and islands
+    pub islands: HashMap<L, Island<V>>,
+
+    /// the mapping between pattern identifier and
+    /// the corresponding 3D shape to build a mesh from
+    pub patterns: HashMap<PatternId, Array3<bool>>,
+}
+
+/// Label an input model for rendering and logic circuit generation
 pub fn label_model<C: Cell + Into<V>, const D: usize, L: Label + Into<usize>, V: Copy>(
     model: &VoxModel<C, D>,
-) -> (
-    VoxModel<L, D>,
-    HashMap<L, Island<V>>,
-    HashMap<PatternId, Array3<bool>>,
-) {
-    let (labeled_model, mut labels) = connected_component_labeling(model);
-    let patterns = identify_patterns(&labeled_model, &mut labels);
-    (labeled_model, labels, patterns)
+) -> LabelingResult<L, D, V> {
+    let (labeled_model, mut islands) = connected_component_labeling(model);
+    let patterns = identify_patterns(&labeled_model, &mut islands);
+    LabelingResult::<L, D, V> {
+        labeled_model,
+        islands,
+        patterns,
+    }
 }
 
 /**
@@ -219,6 +233,9 @@ fn identify_patterns<L: Label, const D: usize, V>(
         // iterate over the area covered by the island
         for (index, cell_label) in labeled_model.bounded_iter(island.bounding_box) {
             if label == cell_label {
+                // count the cell as part of the island
+                island.count += 1;
+
                 // index to set in the matrix generated
                 let matrix_index = array3![for N in {
                     index[N] - island.bounding_box[0][N]
