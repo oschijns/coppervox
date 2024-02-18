@@ -1,6 +1,5 @@
 use bevy::render::{
-    mesh::{Indices, Mesh, VertexAttributeValues},
-    render_resource::PrimitiveTopology,
+    mesh::{Indices, Mesh, VertexAttributeValues}, render_asset::RenderAssetUsages, render_resource::PrimitiveTopology
 };
 use block_mesh::{
     greedy_quads, GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG,
@@ -49,7 +48,7 @@ impl<V: MergeVoxel> BlockMeshMatrix<V> {
         let mut positions = Vec::<[f32; 3]>::with_capacity(num_vertices);
         let mut normals = Vec::<[f32; 3]>::with_capacity(num_vertices);
 
-        let mut render_mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        let mut render_mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
 
         for (group, face) in greedy_quads_buffer
             .quads
@@ -74,7 +73,7 @@ impl<V: MergeVoxel> BlockMeshMatrix<V> {
             VertexAttributeValues::Float32x3(normals),
         );
 
-        render_mesh.set_indices(Some(Indices::U32(indices.clone())));
+        render_mesh.insert_indices(Indices::U32(indices.clone()));
 
         render_mesh
     }
