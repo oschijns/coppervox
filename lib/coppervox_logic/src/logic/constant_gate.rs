@@ -18,7 +18,7 @@ pub struct ConstantGateBundle<V: Element> {
 
 /// For each constant gate in the simulation,
 /// output its value.
-pub fn process<V: Element + Value, C: Element + Copy>(
+pub fn process<V: Element + Value, C: Element>(
     gate_query: Query<(&ConstantGate<V>, &GateOuputs)>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
@@ -29,7 +29,7 @@ pub fn process<V: Element + Value, C: Element + Copy>(
             // find the wire entity to write to
             if let Ok(mut wire) = wire_query.get_mut(id) {
                 // write the value to the wire
-                wire.set_value(gate.value);
+                wire.fuse_value(&gate.value);
             }
         }
     }

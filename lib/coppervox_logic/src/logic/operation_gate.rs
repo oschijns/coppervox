@@ -31,7 +31,7 @@ pub struct OperationGateBundle<O: Element> {
 /// For each operation gate in the simulation.
 /// Apply the operation to each of its inputs to compute a single value.
 /// Set each of its outputs to the single value.
-pub fn process<V: Element + Value, C: Element + Copy, O: Element + Fn(&[V]) -> V>(
+pub fn process<V: Element + Copy + Value, C: Element, O: Element + Fn(&[V]) -> V>(
     gate_query: Query<(&OperationGate<O>, &GateInputs, &GateOuputs)>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
@@ -53,14 +53,14 @@ pub fn process<V: Element + Value, C: Element + Copy, O: Element + Fn(&[V]) -> V
         // set all the ouputs to the computed result
         for &id in ref_outputs.iter() {
             if let Ok(mut wire) = wire_query.get_mut(id) {
-                wire.set_value(result);
+                wire.fuse_value(&result);
             }
         }
     }
 }
 
 /// bitwise OR operation
-pub fn bitwise_or<V: Value + BitOrAssign>(values: &[V]) -> V {
+pub fn bitwise_or<V: Copy + Value + BitOrAssign>(values: &[V]) -> V {
     let mut result = V::default();
     for &v in values.iter() {
         result |= v;
@@ -69,7 +69,7 @@ pub fn bitwise_or<V: Value + BitOrAssign>(values: &[V]) -> V {
 }
 
 /// bitwise AND operation
-pub fn bitwise_and<V: Value + BitAndAssign>(values: &[V]) -> V {
+pub fn bitwise_and<V: Copy + Value + BitAndAssign>(values: &[V]) -> V {
     let mut result = V::default();
     for &v in values.iter() {
         result &= v;
@@ -78,7 +78,7 @@ pub fn bitwise_and<V: Value + BitAndAssign>(values: &[V]) -> V {
 }
 
 /// bitwise NOR operation
-pub fn bitwise_nor<V: Value + BitOrAssign + Not<Output = V>>(values: &[V]) -> V {
+pub fn bitwise_nor<V: Copy + Value + BitOrAssign + Not<Output = V>>(values: &[V]) -> V {
     let mut result = V::default();
     for &v in values.iter() {
         result |= v;
@@ -87,7 +87,7 @@ pub fn bitwise_nor<V: Value + BitOrAssign + Not<Output = V>>(values: &[V]) -> V 
 }
 
 /// bitwise NAND operation
-pub fn bitwise_nand<V: Value + BitAndAssign + Not<Output = V>>(values: &[V]) -> V {
+pub fn bitwise_nand<V: Copy + Value + BitAndAssign + Not<Output = V>>(values: &[V]) -> V {
     let mut result = V::default();
     for &v in values.iter() {
         result &= v;
@@ -96,7 +96,7 @@ pub fn bitwise_nand<V: Value + BitAndAssign + Not<Output = V>>(values: &[V]) -> 
 }
 
 /// arithmetic ADD operation
-pub fn arithmetic_add<V: Value + AddAssign>(values: &[V]) -> V {
+pub fn arithmetic_add<V: Copy + Value + AddAssign>(values: &[V]) -> V {
     let mut result = V::default();
     for &v in values.iter() {
         result += v;
@@ -105,7 +105,7 @@ pub fn arithmetic_add<V: Value + AddAssign>(values: &[V]) -> V {
 }
 
 /// arithmetic MULTIPLY operation
-pub fn arithmetic_mul<V: Value + MulAssign>(values: &[V]) -> V {
+pub fn arithmetic_mul<V: Copy + Value + MulAssign>(values: &[V]) -> V {
     let mut result = V::default();
     for &v in values.iter() {
         result *= v;
@@ -114,7 +114,7 @@ pub fn arithmetic_mul<V: Value + MulAssign>(values: &[V]) -> V {
 }
 
 /// find the minimum operation
-pub fn find_min<V: Value + Ord>(values: &[V]) -> V {
+pub fn find_min<V: Copy + Value + Ord>(values: &[V]) -> V {
     if values.is_empty() {
         V::default()
     } else {
@@ -127,7 +127,7 @@ pub fn find_min<V: Value + Ord>(values: &[V]) -> V {
 }
 
 /// find the maximum operation
-pub fn find_max<V: Value + Ord>(values: &[V]) -> V {
+pub fn find_max<V: Copy + Value + Ord>(values: &[V]) -> V {
     if values.is_empty() {
         V::default()
     } else {

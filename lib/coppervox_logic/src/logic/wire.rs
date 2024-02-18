@@ -15,23 +15,29 @@ pub struct WireState<V, C> {
     next_value: V,
 }
 
-impl<V: Value, C: Copy> WireState<V, C> {
+impl<V: Default + Copy, C> WireState<V, C> {
     /// Reset inner stored values to prepare for next tick.
     pub fn reset_value(&mut self) {
         self.previous_value = self.next_value;
         self.next_value = V::default();
     }
+}
 
+impl<V: Value, C> WireState<V, C> {
     /// Set the value of this wire for the current tick
-    pub fn set_value(&mut self, value: V) {
+    pub fn fuse_value(&mut self, value: &V) {
         self.next_value.fuse_with(value);
     }
+}
 
+impl<V: Copy, C> WireState<V, C> {
     /// Get the value of this wire for computation in the current tick
     pub fn get_value(&self) -> V {
         self.previous_value
     }
+}
 
+impl<V, C: Copy> WireState<V, C> {
     /// Get the channel of the wire
     pub fn get_channel(&self) -> C {
         self.channel
@@ -41,7 +47,7 @@ impl<V: Value, C: Copy> WireState<V, C> {
 /// For each wire in the simulation,
 /// this function will copy the next state
 /// value into its previous state value.
-pub fn prepare_next_frame<V: Element + Value, C: Element + Copy>(
+pub fn prepare_next_frame<V: Element + Default + Copy, C: Element>(
     mut query: Query<&mut WireState<V, C>>,
 ) {
     query.iter_mut().for_each(|mut wire| {

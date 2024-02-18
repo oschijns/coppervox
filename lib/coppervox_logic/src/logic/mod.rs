@@ -1,3 +1,4 @@
+pub mod bundled_wire;
 pub mod constant_gate;
 //pub mod event_handler_bus;
 pub mod io_bus;
@@ -25,9 +26,18 @@ use bevy::prelude::*;
 use std::slice::Iter;
 
 /// Represent a value transmitted over a wire
-pub trait Value: Default + Copy {
+pub trait Value: Default {
     /// used to fuse values together
-    fn fuse_with(&mut self, other: Self);
+    fn fuse_with(&mut self, other: &Self);
+}
+
+/// Represent a group of values splitted over multiple channels
+pub trait ValueBuffer<V, C>: Default {
+    /// get the value stored for this channel
+    fn get(&self, channel: &C) -> V;
+
+    /// fuse the value stored for this channel with the one provided
+    fn fuse_with(&mut self, channel: &C, value: &V);
 }
 
 /// References to the inputs of a given component.
