@@ -76,3 +76,13 @@ pub fn box_overlaps(box_a: &VoxBox, box_b: &VoxBox) -> bool {
     // check if the boxes overlap or not
     !(ax1 < bx0 || bx1 < ax0 || ay1 < by0 || by1 < ay0 || az1 < bz0 || bz1 < az0)
 }
+
+/// return true if the index is part of one of the boxes in the list
+pub fn is_in_boxes(index: &VoxIndex, boxes: &[VoxBox]) -> bool {
+    for abox in boxes {
+        if abox.contains(index) {
+            return true;
+        }
+    }
+    false
+}

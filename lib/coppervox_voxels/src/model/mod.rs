@@ -1,5 +1,6 @@
 pub mod bounding_box;
 pub mod iterator;
+pub mod operation;
 pub mod pathfinder;
 pub mod transform;
 pub mod tree;
