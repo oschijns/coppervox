@@ -1,6 +1,6 @@
 pub mod constant_gate;
 pub mod demultiplexer;
-pub mod event_handler_bus;
+//pub mod event_handler_bus;
 pub mod io_bus;
 pub mod multiplexer;
 pub mod operation_gate;

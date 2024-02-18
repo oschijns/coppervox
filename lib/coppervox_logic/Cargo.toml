@@ -5,5 +5,5 @@ edition = "2021"
 
 
 [dependencies]
-bevy = "0.12"
+bevy = "0.13"
 bitset-core = "0.1"

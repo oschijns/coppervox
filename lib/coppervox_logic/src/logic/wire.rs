@@ -44,7 +44,7 @@ impl<V: Value, C: Copy> WireState<V, C> {
 pub fn prepare_next_frame<V: Element + Value, C: Element + Copy>(
     mut query: Query<&mut WireState<V, C>>,
 ) {
-    query.for_each_mut(|mut wire| {
+    query.iter_mut().for_each(|mut wire| {
         wire.reset_value();
     });
 }
