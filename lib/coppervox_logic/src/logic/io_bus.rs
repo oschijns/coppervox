@@ -6,46 +6,60 @@ use bevy::prelude::*;
 /// Outputs will allow to inject data from the outside world.
 /// Inputs will allow to send data to the outside world.
 #[derive(Component)]
-pub struct IOBus<B> {
-    /// buffer containing data from outside the circuit
-    input_buffer: B,
+pub struct IOBus;
 
-    /// buffer to send data outside of the circuit
-    output_buffer: B,
-}
-
-/// Used to construct a operation gate
+/// Used to construct a IO bus
 #[derive(Bundle)]
-pub struct IOBusBundle<B: Element> {
-    io_bus: IOBus<B>,
+pub struct IOBusBundle<B: Element + TypePath> {
+    io_bus: IOBus,
+    io_buffer: Handle<IOBuffer<B>>,
     inputs: GateInputs,
     outputs: GateOuputs,
+}
+
+/// store the buffers assigned to IO buses in the circuit
+#[derive(Asset, TypePath)]
+pub struct IOBuffer<B: Element + TypePath> {
+    /// buffer containing data from outside the circuit
+    input: B,
+
+    /// buffer to send data outside of the circuit
+    output: B,
 }
 
 /// For each multiplexer in the simulation.
 /// Read the inputs and combine them into a single value.
 /// Set each of its outputs to the single value.
-pub fn process<V: Element + Copy + Value, C: Element + Copy, B: Element + ValueBuffer<V, C>>(
-    mut bus_query: Query<(&mut IOBus<B>, &GateInputs, &GateOuputs)>,
+pub fn process<
+    V: Element + Copy + Value,
+    C: Element + Copy,
+    B: Element + TypePath + ValueBuffer<V, C>,
+>(
+    bus_query: Query<(&Handle<IOBuffer<B>>, &GateInputs, &GateOuputs), With<IOBus>>,
+    mut buffers: ResMut<Assets<IOBuffer<B>>>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
     // for each IO bus
-    for (mut bus, ref_inputs, ref_outputs) in bus_query.iter_mut() {
-        // for each wire input references,
-        // transmit the value to the output buffer
-        for &id in ref_inputs.iter() {
-            if let Ok(wire) = wire_query.get(id) {
-                bus.output_buffer
-                    .fuse_with(&wire.get_channel(), &wire.get_value());
+    for (buffer_handle, ref_inputs, ref_outputs) in bus_query.iter() {
+        // recover the shared buffer for this IO bus
+        if let Some(buffer) = buffers.get_mut(buffer_handle) {
+            // for each wire input references,
+            // transmit the value to the output buffer
+            for &id in ref_inputs.iter() {
+                if let Ok(wire) = wire_query.get(id) {
+                    buffer
+                        .output
+                        .fuse_with(&wire.get_channel(), &wire.get_value());
+                }
             }
-        }
 
-        // for each wire output,
-        // pull a value from the input buffer
-        for &id in ref_outputs.iter() {
-            if let Ok(mut wire) = wire_query.get_mut(id) {
-                let channel = wire.get_channel();
-                wire.fuse_value(&bus.input_buffer.get(&channel));
+            // for each wire output,
+            // pull a value from the input buffer
+            for &id in ref_outputs.iter() {
+                if let Ok(mut wire) = wire_query.get_mut(id) {
+                    let channel = wire.get_channel();
+                    wire.fuse_value(&buffer.input.get(&channel));
+                }
             }
         }
     }
