@@ -1,0 +1,10 @@
+[package]
+name = "coppervox_gui"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+egui       = "0.26"
+egui_tiles = "0.7"
+open       = "5.0"
