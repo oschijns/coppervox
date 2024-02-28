@@ -1,5 +1,5 @@
 use super::{wire::WireState, GateInputs, GateOuputs, Value};
-use crate::Element;
+use crate::{render::Render, Element};
 use bevy::prelude::*;
 use std::{
     cmp::{max, min},
@@ -22,21 +22,43 @@ pub struct OperationGate<O> {
 
 /// Used to construct a operation gate
 #[derive(Bundle)]
-pub struct OperationGateBundle<O: Element> {
+pub struct OperationGateBundle<R: Element, O: Element> {
+    render: Render<R>,
     gate: OperationGate<O>,
     inputs: GateInputs,
     outputs: GateOuputs,
 }
 
+impl<R: Element + Default, O: Element> OperationGateBundle<R, O> {
+    /// Create a bundle given some inputs and outputs
+    pub fn new(operation: O, inputs: &[Entity], outputs: &[Entity]) -> Self {
+        Self {
+            render: Default::default(),
+            gate: OperationGate { operation },
+            inputs: GateInputs {
+                wire_references: Vec::from(inputs),
+            },
+            outputs: GateOuputs {
+                wire_references: Vec::from(outputs),
+            },
+        }
+    }
+}
+
 /// For each operation gate in the simulation.
 /// Apply the operation to each of its inputs to compute a single value.
 /// Set each of its outputs to the single value.
-pub fn process<V: Element + Copy + Value, C: Element, O: Element + Fn(&[V]) -> V>(
-    gate_query: Query<(&OperationGate<O>, &GateInputs, &GateOuputs)>,
+pub fn process<
+    R: Element + for<'a> From<&'a V>,
+    V: Element + Copy + Value,
+    C: Element,
+    O: Element + Fn(&[V]) -> V,
+>(
+    mut gate_query: Query<(&mut Render<R>, &OperationGate<O>, &GateInputs, &GateOuputs)>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
     // for each operation gate
-    for (gate, ref_inputs, ref_outputs) in gate_query.iter() {
+    for (mut render, gate, ref_inputs, ref_outputs) in gate_query.iter_mut() {
         // gather a list of input values to process
         let mut values = Vec::<V>::with_capacity(ref_inputs.len());
 
@@ -49,6 +71,7 @@ pub fn process<V: Element + Copy + Value, C: Element, O: Element + Fn(&[V]) -> V
 
         // apply the operation stored in the gate to every values in the list
         let result = (gate.operation)(&values);
+        render.refresh(&result);
 
         // set all the ouputs to the computed result
         for &id in ref_outputs.iter() {

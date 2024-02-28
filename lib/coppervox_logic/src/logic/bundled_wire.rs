@@ -1,5 +1,5 @@
 use super::{wire::WireState, GateInputs, GateOuputs, Value, ValueBuffer};
-use crate::Element;
+use crate::{render::Render, Element};
 use bevy::prelude::*;
 
 /// Emit a constant value.
@@ -9,7 +9,8 @@ pub struct BundledWire;
 
 /// Used to construct a constant gate
 #[derive(Bundle)]
-pub struct BundeledWireBundle {
+pub struct BundeledWireBundle<R: Element> {
+    render: Render<R>,
     bundled_wire: BundledWire,
     inputs: GateInputs,
     outputs: GateOuputs,
@@ -17,12 +18,17 @@ pub struct BundeledWireBundle {
 
 /// For each constant gate in the simulation,
 /// output its value.
-pub fn process<V: Element + Copy + Value, C: Element + Copy, B: ValueBuffer<V, C>>(
-    bundled_query: Query<(&GateInputs, &GateOuputs), With<BundledWire>>,
+pub fn process<
+    R: Element + for<'a> From<&'a B>,
+    V: Element + Copy + Value,
+    C: Element + Copy,
+    B: ValueBuffer<V, C>,
+>(
+    mut bundled_query: Query<(&mut Render<R>, &GateInputs, &GateOuputs), With<BundledWire>>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
     // for each bundled wire
-    for (ref_inputs, ref_outputs) in bundled_query.iter() {
+    for (mut render, ref_inputs, ref_outputs) in bundled_query.iter_mut() {
         // read all of the input values and transmit
         // them to the outputs based on channels
         let mut buffer = B::default();
@@ -34,6 +40,9 @@ pub fn process<V: Element + Copy + Value, C: Element + Copy, B: ValueBuffer<V, C
                 buffer.fuse_with(&wire.get_channel(), &wire.get_value());
             }
         }
+
+        // update the rendering of the bundled wire
+        render.refresh(&buffer);
 
         // for each output reference,
         // recover the corresponding value from the buffer

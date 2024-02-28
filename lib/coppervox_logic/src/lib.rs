@@ -1,4 +1,5 @@
 pub mod logic;
+pub mod render;
 
 use std::marker::{Send, Sync};
 

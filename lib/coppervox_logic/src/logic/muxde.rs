@@ -1,5 +1,5 @@
 use super::{wire::WireState, GateInputs, GateOuputs, Value, ValueBuffer};
-use crate::Element;
+use crate::{render::Render, Element};
 use bevy::prelude::*;
 
 /// Combine multiple input values into a single value.
@@ -12,7 +12,8 @@ pub struct Multiplexer<F> {
 
 /// Used to construct a multiplexer
 #[derive(Bundle)]
-pub struct MultiplexerBundle<F: Element> {
+pub struct MultiplexerBundle<R: Element, F: Element> {
+    render: Render<R>,
     multiplexer: Multiplexer<F>,
     inputs: GateInputs,
     outputs: GateOuputs,
@@ -28,7 +29,8 @@ pub struct Demultiplexer<F> {
 
 /// Used to construct a demultiplexer
 #[derive(Bundle)]
-pub struct DemultiplexerBundle<F: Element> {
+pub struct DemultiplexerBundle<R: Element, F: Element> {
+    render: Render<R>,
     demultiplexer: Demultiplexer<F>,
     inputs: GateInputs,
     outputs: GateOuputs,
@@ -38,16 +40,17 @@ pub struct DemultiplexerBundle<F: Element> {
 /// Read the inputs and combine them into a single value.
 /// Set each of its outputs to the single value.
 pub fn process_multiplex<
+    R: Element + for<'a> From<&'a V>,
     V: Element + Copy + Value,
     C: Element + Copy,
     B: ValueBuffer<V, C>,
     F: Element + Fn(&B) -> V,
 >(
-    mux_query: Query<(&Multiplexer<F>, &GateInputs, &GateOuputs)>,
+    mut mux_query: Query<(&mut Render<R>, &Multiplexer<F>, &GateInputs, &GateOuputs)>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
     // for each multiplexer
-    for (mux, ref_inputs, ref_outputs) in mux_query.iter() {
+    for (mut render, mux, ref_inputs, ref_outputs) in mux_query.iter_mut() {
         // gather a list of input values to process
         let mut buffer = B::default();
 
@@ -60,6 +63,7 @@ pub fn process_multiplex<
 
         // combine the values together
         let result = (mux.combine_function)(&buffer);
+        render.refresh(&result);
 
         // set all the ouputs to the computed result based on their channel
         for &id in ref_outputs.iter() {
@@ -74,16 +78,17 @@ pub fn process_multiplex<
 /// Apply the operation to each of its inputs to compute a single value.
 /// Set each of its outputs to the single value.
 pub fn process_demultiplex<
+    R: Element + for<'a> From<&'a V>,
     V: Element + Copy + Value,
     C: Element + Copy,
     B: ValueBuffer<V, C>,
     F: Element + Fn(&V) -> B,
 >(
-    demux_query: Query<(&Demultiplexer<F>, &GateInputs, &GateOuputs)>,
+    mut demux_query: Query<(&mut Render<R>, &Demultiplexer<F>, &GateInputs, &GateOuputs)>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
     // for each demultiplexer
-    for (demux, ref_inputs, ref_outputs) in demux_query.iter() {
+    for (mut render, demux, ref_inputs, ref_outputs) in demux_query.iter_mut() {
         // combine all of the inputs into a single value
         let mut value = V::default();
 
@@ -96,6 +101,7 @@ pub fn process_demultiplex<
 
         // Split the values and store the result in a buffer
         let buffer = (demux.split_function)(&value);
+        render.refresh(&value);
 
         // set the outputs to values splitted based on their channels
         for &id in ref_outputs.wire_references.iter() {

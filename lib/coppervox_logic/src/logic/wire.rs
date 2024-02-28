@@ -1,5 +1,5 @@
 use super::Value;
-use crate::Element;
+use crate::{render::Render, Element};
 use bevy::prelude::*;
 
 /// The logic component of a wire.
@@ -16,6 +16,15 @@ pub struct WireState<V, C> {
 }
 
 impl<V: Default + Copy, C> WireState<V, C> {
+    /// create a new wirestate component
+    pub fn new(channel: C) -> Self {
+        Self {
+            channel,
+            previous_value: V::default(),
+            next_value: V::default(),
+        }
+    }
+
     /// Reset inner stored values to prepare for next tick.
     pub fn reset_value(&mut self) {
         self.previous_value = self.next_value;
@@ -52,5 +61,14 @@ pub fn prepare_next_frame<V: Element + Default + Copy, C: Element>(
 ) {
     query.iter_mut().for_each(|mut wire| {
         wire.reset_value();
+    });
+}
+
+/// update the value associated with the rendering of the wires
+pub fn refresh_rendered_value<R: Element + for<'a> From<&'a V>, V: Element, C: Element>(
+    mut query: Query<(&mut Render<R>, &WireState<V, C>)>,
+) {
+    query.iter_mut().for_each(|(mut render, wire)| {
+        render.refresh(&wire.next_value);
     });
 }
