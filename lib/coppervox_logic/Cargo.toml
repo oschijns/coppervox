@@ -4,6 +4,36 @@ version = "0.1.0"
 edition = "2021"
 
 
+[features]
+dev = [
+    "bevy/dynamic_linking",
+]
+
+
 [dependencies]
-bevy        = "0.13"
-bitset-core = "0.1"
+bevy = { version = "0.13", default-features = false, features = [
+    "animation",
+    "bevy_asset",
+    "bevy_gilrs",
+    "bevy_scene",
+    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_gltf",
+    "bevy_render",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "multi-threaded",
+    "png",
+    "hdr",
+    "x11",
+    "bevy_gizmos",
+    "tonemapping_luts",
+    "default_font",
+    "webgl2",
+    "bevy_debug_stepping",
+] }
+bevy_kira_audio = "0.19"
+bevy_asset_loader = "0.20"
+

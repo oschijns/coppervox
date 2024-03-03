@@ -4,6 +4,7 @@ pub mod constant_gate;
 pub mod io_bus;
 pub mod muxde;
 pub mod operation_gate;
+pub mod speaker;
 pub mod wire;
 
 /// Handle the logc aspect of circuits on runtime
