@@ -2,12 +2,11 @@ use super::{wire::WireState, GateInputs, GateOuputs, Value, ValueBuffer};
 use crate::{render::Render, Element};
 use bevy::prelude::*;
 
-/// Emit a constant value.
-/// This gate has only outputs.
+/// Group a bunch of wires together.
 #[derive(Component)]
 pub struct BundledWire;
 
-/// Used to construct a constant gate
+/// Used to construct a bundled wire
 #[derive(Bundle)]
 pub struct BundeledWireBundle<R: Element> {
     render: Render<R>,
@@ -16,8 +15,8 @@ pub struct BundeledWireBundle<R: Element> {
     outputs: GateOuputs,
 }
 
-/// For each constant gate in the simulation,
-/// output its value.
+/// For each bundled wire in the simulation, read the input values based
+/// on channel and output on the corresponding channel.
 pub fn process<
     R: Element + for<'a> From<&'a B>,
     V: Element + Copy + Value,
