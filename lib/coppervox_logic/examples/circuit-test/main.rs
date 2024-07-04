@@ -1,5 +1,6 @@
 extern crate coppervox_logic;
 use bevy::prelude::*;
+use bevy::color::palettes::css;
 use coppervox_logic::logic::{
     operation_gate::{bitwise_and, bitwise_nor, OperationGateBundle},
     wire::WireState,
@@ -47,36 +48,36 @@ fn build_circuit(
         // wire channel 1
         MaterialPair {
             material_off: materials.add(StandardMaterial {
-                base_color: Color::RED,
+                base_color: css::RED.into(),
                 ..default()
             }),
             material_on: materials.add(StandardMaterial {
-                base_color: Color::RED,
-                emissive: Color::ORANGE_RED,
+                base_color: css::RED.into(),
+                emissive: css::ORANGE_RED.into(),
                 ..default()
             }),
         },
         // wire channel 2
         MaterialPair {
             material_off: materials.add(StandardMaterial {
-                base_color: Color::GREEN,
+                base_color: css::GREEN.into(),
                 ..default()
             }),
             material_on: materials.add(StandardMaterial {
-                base_color: Color::GREEN,
-                emissive: Color::LIME_GREEN,
+                base_color: css::GREEN.into(),
+                emissive: css::LIMEGREEN.into(),
                 ..default()
             }),
         },
         // wire channel 3
         MaterialPair {
             material_off: materials.add(StandardMaterial {
-                base_color: Color::BLUE,
+                base_color: css::BLUE.into(),
                 ..default()
             }),
             material_on: materials.add(StandardMaterial {
-                base_color: Color::BLUE,
-                emissive: Color::ALICE_BLUE,
+                base_color: css::BLUE.into(),
+                emissive: css::ALICE_BLUE.into(),
                 ..default()
             }),
         },

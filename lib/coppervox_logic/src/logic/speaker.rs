@@ -1,6 +1,8 @@
 use super::{wire::WireState, GateInputs, Value};
 use crate::{render::Render, Element, Nillable};
 use bevy::prelude::*;
+
+/*
 use bevy_kira_audio::prelude::*;
 
 /// Read the input as a pitch and play the corresponding sound
@@ -65,3 +67,5 @@ pub fn process<
         }
     }
 }
+
+*/
