@@ -11,7 +11,7 @@ edition = "2021"
 
 
 [dependencies]
-bevy = "0.14"
+bevy = { git = "https://github.com/bevyengine/bevy.git", branch = "main" }
+bytemuck = "1.17"
 #bevy_kira_audio = "0.19"
 #bevy_asset_loader = "0.20"
-
