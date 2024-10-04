@@ -19,3 +19,4 @@ opt-level = 3
 [dependencies]
 bevy = "0.14"
 coppervox_logic = { path = "lib/coppervox_logic" }
+coppervox_voxels = { path = "lib/coppervox_voxels" }
