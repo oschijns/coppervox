@@ -1,5 +1,3 @@
-pub mod instancing;
-
 use crate::Element;
 use bevy::ecs::component::Component;
 

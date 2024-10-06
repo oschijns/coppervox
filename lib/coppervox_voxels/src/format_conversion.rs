@@ -1,8 +1,17 @@
+use serde::Deserialize;
+
 /// Specify where to place the origin of the
 /// model when importing external formats.
+#[derive(Default, Deserialize)]
 pub enum OriginConfig {
+    /// Mesh origin is at the left, bottom or front of the model
     Start,
+
+    /// Mesh origin is at the middle of the model
+    #[default]
     Middle,
+
+    /// Mesh origin is at the right, top or back of the model
     End,
 }
 
@@ -13,7 +22,7 @@ pub mod magica_voxel {
     use dot_vox::{Model, Size, Voxel};
 
     /// Conversion of Magica Voxel into ndarray::Array3
-    pub fn convert<C: Cell + From<Voxel>, const D: usize>(
+    pub fn convert<C: Cell + From<u8>, const D: usize>(
         model: &Model,
         origin_config: &[OriginConfig; 3],
     ) -> VoxModel<C, D> {
@@ -43,7 +52,7 @@ pub mod magica_voxel {
                 z as isize - offset_z,
                 y as isize - offset_y,
             ];
-            voxel_model[index] = C::from(voxel);
+            voxel_model[index] = C::from(voxel.i + 1u8);
         });
 
         voxel_model

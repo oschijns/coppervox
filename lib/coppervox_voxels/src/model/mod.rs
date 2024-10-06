@@ -5,11 +5,12 @@ pub mod pathfinder;
 pub mod transform;
 pub mod tree;
 
-use crate::array3;
+use crate::{array3, tuple3, Cell};
 use nalgebra::{vector, Matrix4};
 use ndarray::Array3;
 use num::integer::{div_floor, mod_floor};
 use std::{
+    cmp::{max, min},
     collections::HashMap,
     ops::{Index, IndexMut},
 };
@@ -35,6 +36,74 @@ pub struct VoxModel<C, const D: usize> {
 
     // empty cell used when indexing a value out of bounds
     out_of_bound: C,
+}
+
+/// Convert the voxel model into a 3D matrix
+impl<C: Default + Cell, const D: usize> VoxModel<C, D> {
+    /// Convert the voxel model into a 3D matrix
+    pub fn to_matrix(&self) -> Array3<C> {
+        // find the min and max indexes of the chunks
+        let mut min_chunk = [isize::MAX; 3];
+        let mut max_chunk = [isize::MIN; 3];
+        for index in self.chunks.keys() {
+            for i in 0..3 {
+                min_chunk[i] = min(min_chunk[i], index[i]);
+                max_chunk[i] = max(max_chunk[i], index[i]);
+            }
+        }
+
+        // find the chunks at the limit of the area
+        let mut min_idx = [usize::MAX; 3];
+        let mut max_idx = [usize::MIN; 3];
+        for (chunk_idx, chunk) in self.chunks.iter() {
+            // process to find the min and max index along an axis
+            macro_rules! process_axis {
+                (min $axis:literal) => {
+                    if chunk_idx[$axis] == min_chunk[$axis] {
+                        for ((ix, iy, iz), c) in chunk.indexed_iter() {
+                            let index = [ix, iy, iz][$axis];
+                            if !c.is_empty() && min_idx[$axis] > index {
+                                min_idx[$axis] = index;
+                            }
+                        }
+                    }
+                };
+                (max $axis:literal) => {
+                    if chunk_idx[$axis] == max_chunk[$axis] {
+                        for ((ix, iy, iz), c) in chunk.indexed_iter() {
+                            let index = [ix, iy, iz][$axis];
+                            if !c.is_empty() && max_idx[$axis] < index {
+                                max_idx[$axis] = index;
+                            }
+                        }
+                    }
+                };
+            }
+
+            // process all three axis
+            process_axis![min 0];
+            process_axis![min 1];
+            process_axis![min 2];
+            process_axis![max 0];
+            process_axis![max 1];
+            process_axis![max 2];
+        }
+
+        // figure out the final dimension of the matrix
+        let dim = D as isize;
+        let min_point = array3![for N in { min_chunk[N] * dim + min_idx[N] as isize } -> isize];
+        let max_point = array3![for N in { max_chunk[N] * dim + max_idx[N] as isize } -> isize];
+        let dim = tuple3![for N in { max_point[N] - min_point[N] } -> usize];
+        let mut matrix = Array3::<C>::default(dim);
+
+        // fill the matrix with the data contained in the model
+        for (index, voxel) in self.iter() {
+            let i = array3![for N in { index[N] - min_point[N] } -> usize];
+            matrix[i] = *voxel;
+        }
+
+        matrix
+    }
 }
 
 /// Indexing for voxel model

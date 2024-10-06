@@ -6,7 +6,7 @@ use bevy::render::{
 use block_mesh::{
     greedy_quads, GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG,
 };
-use ndarray::{ArrayBase, Data, Ix3, RawData};
+use ndarray::Array3;
 use ndshape::{RuntimeShape, Shape};
 
 /// Matrix compatible with the `block_mesh` crate
@@ -85,10 +85,8 @@ impl<V: MergeVoxel> BlockMeshMatrix<V> {
 }
 
 /// Convert a ndarray::Array3 into a BlockMeshMatrix
-impl<V: Default + Clone + for<'a> From<&'a <R as RawData>::Elem>, R: RawData + Data>
-    From<&ArrayBase<R, Ix3>> for BlockMeshMatrix<V>
-{
-    fn from(matrix: &ArrayBase<R, Ix3>) -> Self {
+impl<V: Default + Clone> BlockMeshMatrix<V> {
+    pub fn from_matrix<A: Copy + Into<V>>(matrix: &Array3<A>) -> Self {
         // A matrix used by the block mesh function needs
         // an one-cell extra shell around the initial matrix.
         let (sx, sy, sz) = matrix.dim();
@@ -100,7 +98,7 @@ impl<V: Default + Clone + for<'a> From<&'a <R as RawData>::Elem>, R: RawData + D
         // iterate of the matrix and store the data at the appropriate location in the data buffer
         for ((x, y, z), value) in matrix.indexed_iter() {
             let index = shape.linearize([x as u32 + 1, y as u32 + 1, z as u32 + 1]) as usize;
-            data[index] = V::from(value);
+            data[index] = (*value).into();
         }
 
         Self {

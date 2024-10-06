@@ -1,6 +1,6 @@
 extern crate coppervox_logic;
-use bevy::prelude::*;
 use bevy::color::palettes::css;
+use bevy::prelude::*;
 use coppervox_logic::logic::{
     operation_gate::{bitwise_and, bitwise_nor, OperationGateBundle},
     wire::WireState,
