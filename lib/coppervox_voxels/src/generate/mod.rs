@@ -4,13 +4,18 @@ pub mod labeling;
 pub mod mesh;
 pub mod pattern;
 
-use std::collections::HashSet;
+use std::{
+    collections::{HashMap, HashSet},
+    hash::Hash,
+};
 
-use crate::{array3, model::VoxModel};
+use crate::{
+    array3,
+    model::{VoxIndex, VoxModel},
+};
 use bevy::{
     asset::{Assets, Handle},
     prelude::{Mesh, ResMut},
-    utils::HashMap,
 };
 use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
 use connectivity::connectivity;
@@ -18,7 +23,8 @@ use labeling::label_model;
 use mesh::BlockMeshMatrix;
 use pattern::PatternId;
 use petgraph::{
-    matrix_graph::{MatrixGraph, NodeIndex},
+    csr::{Csr, NodeIndex},
+    visit::IntoEdgeReferences,
     Directed,
 };
 
@@ -27,7 +33,7 @@ use super::Cell;
 /// Define the elements of the circuit
 pub struct CircuitData<T> {
     /// The elements of the circuit
-    elements: MatrixGraph<CircuitElement<T>, (), Directed>,
+    elements: Csr<CircuitElement<T>, (), Directed>,
 }
 
 /// Define an element of the circuit
@@ -36,17 +42,18 @@ pub struct CircuitElement<T> {
     element_type: T,
 
     /// Position of the element
-    position: [i32; 3],
+    position: VoxIndex,
 
     /// The mesh used to render the element
     mesh_handle: Handle<Mesh>,
 }
 
-impl<T: Copy> CircuitData<T> {
+impl<T: Copy + Typed> CircuitData<T> {
     /// Analyze the voxel model to prepare a circuit
     /// that can be used to generate bevy entities.
-    pub fn generate<C: Cell + Into<T>, const D: usize>(
+    pub fn generate<C: Cell + Into<T> + Hash, const D: usize>(
         model: &VoxModel<C, D>,
+        threshold: usize,
         mut meshes: ResMut<Assets<Mesh>>,
     ) -> Self {
         let labeled = label_model::<C, D, usize, T>(&model);
@@ -75,37 +82,61 @@ impl<T: Copy> CircuitData<T> {
         let graph = connectivity(&matrix, &labels);
 
         // generate the circuit data
-        let mut elements =
-            MatrixGraph::<CircuitElement<T>, (), Directed>::with_capacity(labels.len());
+        let mut elements = Csr::<CircuitElement<T>, (), Directed>::new();
+        let mut node_map = HashMap::<usize, NodeIndex>::with_capacity(labeled.islands.len());
+        for (&label, island) in &labeled.islands {
+            let index = elements.add_node(CircuitElement {
+                element_type: island.value,
+                position: island.bounding_box[0],
+                mesh_handle: mesh_map[&island.pattern_id].clone(),
+            });
+            node_map.insert(label, index);
+        }
+
+        // iterate over every contacts in the graph
+        for (node1, node2, &edge) in graph.edge_references() {
+            // connection can only be established between
+            // a wire and another component that is not a wire
+            let label1 = graph.node_weight(node1);
+            let label2 = graph.node_weight(node2);
+            if label1 != label2 {
+                macro_rules! match_label_with_type {
+                    ($label:ident) => {
+                        if let Some(island) = labeled.islands.get(&$label) {
+                            island.value
+                        } else {
+                            continue;
+                        }
+                    };
+                }
+
+                let type1 = match_label_with_type![label1];
+                let type2 = match_label_with_type![label2];
+                if type1.is_wire() != type2.is_wire() {
+                    // the two elements should be connected
+                    let (the_wire, the_comp) = if type1.is_wire() {
+                        (label1, label2)
+                    } else {
+                        (label2, label1)
+                    };
+
+                    // the threshold specify the direction of the connection:
+                    // <  threshold: from the wire to the component
+                    // >= threshold: from the component to the wire
+                    let node_wire = node_map[the_wire];
+                    let node_comp = node_map[the_comp];
+                    if edge < threshold {
+                        elements.add_edge(node_comp, node_wire, ());
+                    } else {
+                        elements.add_edge(node_wire, node_comp, ());
+                    }
+                }
+            }
+        }
 
         Self { elements }
     }
 }
-
-/// Convert a VoxModel into a set of meshes
-/*
-pub fn generate_meshes<C: Cell + Into<V>, const D: usize, V: Copy>(
-    model: &VoxModel<C, D>,
-    mut meshes: ResMut<Assets<Mesh>>
-) {
-    let labeled = label_model::<C, D, usize, V>(&model);
-
-    // Generate the meshes that will be used by bevy
-    let mut mesh_map = HashMap::<PatternId, Handle<Mesh>>::with_capacity(labeled.patterns.len());
-    for (id, pattern) in labeled.patterns {
-        let block_mesh = BlockMeshMatrix::<BoolVoxel>::from_matrix(&pattern);
-        mesh_map.insert(
-            id,
-            meshes.add(block_mesh.build_mesh(
-                [0, 0, 0],
-                array3![for N in {
-                    id.dimensions[N]
-                } -> u32],
-            )),
-        );
-    }
-}
-*/
 
 /// Trait for labeling
 pub trait Label: Cell + Ord + std::hash::Hash {
@@ -141,6 +172,12 @@ impl_label![i16];
 impl_label![i32];
 impl_label![i64];
 impl_label![isize];
+
+/// Represent a component that has been typed
+pub trait Typed {
+    /// Specify if the typed component is a wire or not
+    fn is_wire(&self) -> bool;
+}
 
 #[derive(Default, Clone, Copy, Eq, PartialEq)]
 struct BoolVoxel(bool);
