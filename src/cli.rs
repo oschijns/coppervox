@@ -30,7 +30,7 @@ impl Cli {
     /// Parse the command line arguments and load the file to obtain a config
     pub fn load_config<V: DeserializeOwned>(&self) -> io::Result<MainConfig<V>> {
         serde_yaml::from_reader::<Input, MainConfig<V>>(self.config.clone())
-            .map_err(|err| io::Error::other(err))
+            .map_err(io::Error::other)
     }
 
     /// Parse the command line arguments and load the file to obtain voxel models
@@ -41,7 +41,7 @@ impl Cli {
         // read the input file to load a Magica Voxel model
         let mut data = Vec::<u8>::new();
         let _ = self.input.clone().read_to_end(&mut data)?;
-        let magica = dot_vox::load_bytes(&data).map_err(|err| io::Error::other(err))?;
+        let magica = dot_vox::load_bytes(&data).map_err(io::Error::other)?;
 
         // load models from the file
         let res: Vec<VoxModel<V, D>> = magica

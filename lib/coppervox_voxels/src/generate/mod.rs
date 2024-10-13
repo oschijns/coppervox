@@ -45,6 +45,9 @@ pub struct CircuitElement<T, W> {
     /// The type of the element
     element_type: ElementType<T, W>,
 
+    /// Number of voxels composing this element
+    voxel_count: usize,
+
     /// Transform of the element
     transform: Transform,
 
@@ -65,7 +68,7 @@ impl<T: Copy + Hash + Eq, W: Clone + From<usize>> CircuitData<T, W> {
         converter: &C,
         threshold: usize,
     ) -> Self {
-        let labeled = LabeledModel::from_model(&model);
+        let labeled = LabeledModel::from_model(model);
 
         // Generate the meshes that will be used by bevy
         let mut mesh_map =
@@ -97,6 +100,7 @@ impl<T: Copy + Hash + Eq, W: Clone + From<usize>> CircuitData<T, W> {
             let pos = island.bounding_box[0];
             let index = circuit.add_node(CircuitElement {
                 element_type: converter.convert(&island.value),
+                voxel_count: island.count,
                 transform: Transform::from_xyz(pos[0] as f32, pos[1] as f32, pos[2] as f32),
                 mesh_handle: mesh_map[&island.pattern_id].clone(),
             });
@@ -230,7 +234,7 @@ impl<T, W> CircuitData<T, W> {
                 }
 
                 // call the builder to add the component behavior
-                builder.set_component(&mut cmd, comp_type, &inputs, &outputs);
+                builder.set_component(&mut cmd, comp_type, element.voxel_count, &inputs, &outputs);
             }
         }
     }
@@ -249,6 +253,7 @@ pub trait Builder<T, W, M: Material> {
         &self,
         cmd: &mut EntityCommands,
         comp_type: &T,
+        voxel_count: usize,
         inputs: &[Entity],
         outputs: &[Entity],
     );

@@ -72,6 +72,56 @@ pub trait ValueBuffer<V, C>: Default {
     fn fuse_with(&mut self, channel: &C, value: &V);
 }
 
+/// Implement the value buffer trait for basic integer types
+macro_rules! impl_value_buffer {
+    ($data_type:ty [ $channel_type:ty ]) => {
+        impl ValueBuffer<$data_type, $channel_type> for $data_type {
+            fn get(&self, channel: &$channel_type) -> $data_type {
+                let channel = *channel as u32;
+                if self.wrapping_shr(channel) & 0b1 != 0 {
+                    <$data_type>::MAX
+                } else {
+                    0
+                }
+            }
+
+            fn fuse_with(&mut self, channel: &$channel_type, value: &$data_type) {
+                let channel = *channel as u32;
+                if *value != 0 {
+                    *self |= 0b1u32.wrapping_shl(channel) as $data_type;
+                } else {
+                    *self &= !0b1u32.wrapping_shl(channel) as $data_type;
+                }
+            }
+        }
+    };
+}
+impl_value_buffer![u8[u8]];
+impl_value_buffer![u8[u16]];
+impl_value_buffer![u8[u32]];
+impl_value_buffer![u8[u64]];
+impl_value_buffer![u8[usize]];
+impl_value_buffer![u16[u8]];
+impl_value_buffer![u16[u16]];
+impl_value_buffer![u16[u32]];
+impl_value_buffer![u16[u64]];
+impl_value_buffer![u16[usize]];
+impl_value_buffer![u32[u8]];
+impl_value_buffer![u32[u16]];
+impl_value_buffer![u32[u32]];
+impl_value_buffer![u32[u64]];
+impl_value_buffer![u32[usize]];
+impl_value_buffer![u64[u8]];
+impl_value_buffer![u64[u16]];
+impl_value_buffer![u64[u32]];
+impl_value_buffer![u64[u64]];
+impl_value_buffer![u64[usize]];
+impl_value_buffer![usize[u8]];
+impl_value_buffer![usize[u16]];
+impl_value_buffer![usize[u32]];
+impl_value_buffer![usize[u64]];
+impl_value_buffer![usize[usize]];
+
 /// References to the inputs of a given component.
 #[derive(Component)]
 pub struct GateInputs {
@@ -140,3 +190,18 @@ macro_rules! impl_gate_connectors {
 
 impl_gate_connectors!(GateInputs);
 impl_gate_connectors!(GateOuputs);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_value_buffer() {
+        let mut buffer = 0u8;
+        <u8 as ValueBuffer<u8, usize>>::fuse_with(&mut buffer, &12usize, &20u8);
+        assert_eq![0u8, buffer];
+
+        <u8 as ValueBuffer<u8, u16>>::fuse_with(&mut buffer, &2u16, &20u8);
+        assert_eq![0b100u8, buffer];
+    }
+}

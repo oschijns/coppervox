@@ -24,7 +24,6 @@ coppervox_logic = { path = "lib/coppervox_logic" }
 coppervox_voxels = { path = "lib/coppervox_voxels" }
 dot_vox = "4.1"
 leafwing-input-manager = "0.15.1"
-min_max_traits = "0.1"
 num = "0.4"
 petgraph = "0.6"
 serde = { version = "1.0", features = ["derive"] }

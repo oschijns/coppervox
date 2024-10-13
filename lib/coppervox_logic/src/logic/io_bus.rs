@@ -10,6 +10,13 @@ pub struct IOBus<B: Element + TypePath> {
     buffer_handle: Handle<IOBuffer<B>>,
 }
 
+impl<B: Element + TypePath> IOBus<B> {
+    /// Create a new IO bus using the provided IO buffer
+    pub fn new(buffer_handle: Handle<IOBuffer<B>>) -> Self {
+        Self { buffer_handle }
+    }
+}
+
 /// Used to construct a IO bus
 #[derive(Bundle)]
 pub struct IOBusBundle<B: Element + TypePath> {

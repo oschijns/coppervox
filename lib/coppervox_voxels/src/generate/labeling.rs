@@ -162,7 +162,7 @@ fn connected_component_labeling<V: Cell + Default + Copy + Eq, const D: usize>(
     }
 
     /* SECOND PASS */
-    let label_count: usize = current_label.into();
+    let label_count = current_label;
     current_label = 1;
 
     // reassign the labels based on the groups found within the disjoint set

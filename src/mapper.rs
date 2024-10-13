@@ -4,13 +4,15 @@ use bevy::asset::{Asset, Handle};
 use bevy::ecs::system::EntityCommands;
 use bevy::pbr::Material;
 use bevy::prelude::Entity;
+use bevy::reflect::TypePath;
 use coppervox_logic::logic::bundled_wire::BundledWire;
 use coppervox_logic::logic::constant_gate::ConstantGate;
+use coppervox_logic::logic::io_bus::{IOBuffer, IOBus};
+use coppervox_logic::logic::muxde::{Demultiplexer, Multiplexer};
 use coppervox_logic::logic::wire::WireState;
 use coppervox_logic::logic::{operation_gate::*, GateInputs, GateOuputs, Value};
 use coppervox_logic::Element;
 use coppervox_voxels::generate::{Builder, ElementType};
-use min_max_traits::Max;
 use num::traits::{WrappingAdd, WrappingMul};
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -33,10 +35,8 @@ impl<V: Eq + Hash + Copy> CircuitConverter<V> {
             config.wires.len() + COMP_TYPES,
         );
 
-        let mut channel: Channel = 0;
-        for wire in config.wires.iter() {
-            map.insert(*wire, ElementType::Wire(channel));
-            channel += 1;
+        for (channel, &wire) in (0u32..).zip(config.wires.iter()) {
+            map.insert(wire, ElementType::Wire(channel));
         }
 
         // check if the value match with the one from the attribute
@@ -69,7 +69,7 @@ impl<V: Eq + Hash + Copy> CircuitConverter<V> {
 }
 
 /// Generate circuit elements
-pub struct CircuitBuilder<M: Asset, V> {
+pub struct CircuitBuilder<M: Asset, V, B: Element + TypePath> {
     /// Materials for wires
     materials_wires: Vec<Handle<M>>,
 
@@ -79,6 +79,9 @@ pub struct CircuitBuilder<M: Asset, V> {
     /// Material for invalid elements
     material_neither: Handle<M>,
 
+    /// IO buffer to connect the simulation to the outside world
+    io_buffer: Handle<IOBuffer<B>>,
+
     /// Constraint the value type transmitted over the wires
     phantom: PhantomData<V>,
 }
@@ -87,7 +90,6 @@ impl<
         M: Material,
         V: 'static
             + Element
-            + Max
             + Default
             + Copy
             + Value
@@ -98,13 +100,15 @@ impl<
             + WrappingMul
             //+ Neg<Output = V>
             //+ Inv<Output = V>
-            + Ord,
-    > Builder<CompType, Channel, M> for CircuitBuilder<M, V>
+            + Ord
+            + From<usize>,
+        B: Element + TypePath,
+    > Builder<CompType, Channel, M> for CircuitBuilder<M, V, B>
 {
     /// Get the material to apply to the entity
     fn get_material(&self, element_type: &ElementType<CompType, Channel>) -> Handle<M> {
-        match &element_type {
-            &ElementType::Wire(channel) => {
+        match element_type {
+            ElementType::Wire(channel) => {
                 let channel = *channel as usize;
                 if channel < self.materials_wires.len() {
                     self.materials_wires[channel].clone()
@@ -112,9 +116,9 @@ impl<
                     self.material_neither.clone()
                 }
             }
-            &ElementType::Component(comp_type) => self
+            ElementType::Component(comp_type) => self
                 .materials_components
-                .get(&comp_type)
+                .get(comp_type)
                 .cloned()
                 .unwrap_or(self.material_neither.clone()),
             _ => self.material_neither.clone(),
@@ -131,10 +135,48 @@ impl<
         &self,
         cmd: &mut EntityCommands,
         comp_type: &CompType,
+        voxel_count: usize,
         inputs: &[Entity],
         outputs: &[Entity],
     ) {
-        comp_type.add_component::<V>(cmd, 0, inputs, outputs);
+        macro_rules! insert_io {
+            (I) => {
+                cmd.insert(GateInputs::new(inputs))
+            };
+            (O) => {
+                cmd.insert(GateOuputs::new(outputs))
+            };
+            (IO) => {
+                cmd.insert((GateInputs::new(inputs), GateOuputs::new(outputs)))
+            };
+        }
+
+        match comp_type {
+            CompType::Constant => {
+                insert_io![O];
+                cmd.insert(ConstantGate::new(V::from(voxel_count)));
+            }
+            CompType::Gate(gate_type) => {
+                insert_io![IO];
+                cmd.insert(OperationGate::new(gate_type.get_func::<V>()));
+            }
+            CompType::Mux => {
+                insert_io![IO];
+                cmd.insert(Multiplexer::new(|v: V| v));
+            }
+            CompType::Demux => {
+                insert_io![IO];
+                cmd.insert(Demultiplexer::new(|v: V| v));
+            }
+            CompType::IOBus => {
+                insert_io![IO];
+                cmd.insert(IOBus::new(self.io_buffer.clone()));
+            }
+            CompType::BundledWire => {
+                insert_io![IO];
+                cmd.insert(BundledWire);
+            }
+        }
     }
 }
 
@@ -158,70 +200,6 @@ enum CompType {
 
     /// A bundled wire
     BundledWire,
-}
-
-impl CompType {
-    fn add_component<
-        V: 'static
-            + Element
-            + Max
-            + Default
-            + Copy
-            + Value
-            + BitOrAssign
-            + BitAndAssign
-            + Not<Output = V>
-            + WrappingAdd
-            + WrappingMul
-            //+ Neg<Output = V>
-            //+ Inv<Output = V>
-            + Ord,
-    >(
-        &self,
-        cmd: &mut EntityCommands,
-        _count: usize,
-        inputs: &[Entity],
-        outputs: &[Entity],
-    ) {
-        macro_rules! insert_io {
-            (I) => {
-                cmd.insert(GateInputs::new(inputs))
-            };
-            (O) => {
-                cmd.insert(GateOuputs::new(outputs))
-            };
-            (IO) => {
-                cmd.insert((GateInputs::new(inputs), GateOuputs::new(outputs)))
-            };
-        }
-
-        match self {
-            Self::Constant => {
-                insert_io![O];
-                cmd.insert(ConstantGate::new(V::MAX));
-            }
-            Self::Gate(gate_type) => {
-                insert_io![IO];
-                gate_type.add_operator::<V>(cmd);
-            }
-            Self::Mux => {
-                insert_io![IO];
-                //cmd.insert(Multiplexer::new());
-            }
-            Self::Demux => {
-                insert_io![IO];
-                //cmd.insert(Demultiplexer::new());
-            }
-            Self::IOBus => {
-                insert_io![IO];
-                //cmd.insert(IOBus);
-            }
-            Self::BundledWire => {
-                insert_io![IO];
-                cmd.insert(BundledWire);
-            }
-        }
-    }
 }
 
 /// The various types of logic or arithmetic gates that can be created
@@ -259,7 +237,7 @@ enum GateType {
 }
 
 impl GateType {
-    fn add_operator<
+    fn get_func<
         V: 'static
             + Default
             + Copy
@@ -274,27 +252,22 @@ impl GateType {
             + Ord,
     >(
         &self,
-        cmd: &mut EntityCommands,
-    ) {
-        // create an instance of the operation gate
-        macro_rules! create {
-            ($func:ident) => {
-                cmd.insert(OperationGate::new(&$func::<V>))
-            };
+    ) -> for<'v> fn(&'v [V]) -> V {
+        match *self {
+            Self::Or => bitwise_or::<V>,
+            Self::And => bitwise_and::<V>,
+            Self::Nor => bitwise_nor::<V>,
+            Self::Nand => bitwise_nand::<V>,
+            Self::Add => arithmetic_add::<V>,
+            Self::Mul => arithmetic_multiply::<V>,
+            Self::Min => find_min::<V>,
+            Self::Max => find_max::<V>,
+            _ => does_nothing::<V>,
         }
-
-        let _ = match self {
-            &Self::Or => create![bitwise_or],
-            &Self::And => create![bitwise_and],
-            &Self::Nor => create![bitwise_nor],
-            &Self::Nand => create![bitwise_nand],
-            &Self::Add => create![arithmetic_add],
-            &Self::Mul => create![arithmetic_multiply],
-            //&Self::Neg => create![arithmetic_negate],
-            //&Self::Inv => create![arithmetic_invert],
-            &Self::Min => create![find_min],
-            &Self::Max => create![find_max],
-            _ => cmd,
-        };
     }
+}
+
+/// A function that does nothing for gates that are not yet supported
+fn does_nothing<V: Default>(_: &[V]) -> V {
+    V::default()
 }
