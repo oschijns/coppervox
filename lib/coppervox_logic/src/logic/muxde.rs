@@ -10,6 +10,14 @@ pub struct Multiplexer<F> {
     combine_function: F,
 }
 
+impl<F> Multiplexer<F> {
+    pub fn new(func: F) -> Self {
+        Self {
+            combine_function: func,
+        }
+    }
+}
+
 /// Used to construct a multiplexer
 #[derive(Bundle)]
 pub struct MultiplexerBundle<R: Element, F: Element> {
@@ -25,6 +33,14 @@ pub struct Demultiplexer<F> {
     /// function used to split a value into
     /// multiple ones based on channels
     split_function: F,
+}
+
+impl<F> Demultiplexer<F> {
+    pub fn new(func: F) -> Self {
+        Self {
+            split_function: func,
+        }
+    }
 }
 
 /// Used to construct a demultiplexer

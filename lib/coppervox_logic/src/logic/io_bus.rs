@@ -6,13 +6,14 @@ use bevy::prelude::*;
 /// Outputs will allow to inject data from the outside world.
 /// Inputs will allow to send data to the outside world.
 #[derive(Component)]
-pub struct IOBus;
+pub struct IOBus<B: Element + TypePath> {
+    buffer_handle: Handle<IOBuffer<B>>,
+}
 
 /// Used to construct a IO bus
 #[derive(Bundle)]
 pub struct IOBusBundle<B: Element + TypePath> {
-    io_bus: IOBus,
-    io_buffer: Handle<IOBuffer<B>>,
+    io_bus: IOBus<B>,
     inputs: GateInputs,
     outputs: GateOuputs,
 }
@@ -35,14 +36,14 @@ pub fn process<
     C: Element + Copy,
     B: Element + TypePath + ValueBuffer<V, C>,
 >(
-    bus_query: Query<(&Handle<IOBuffer<B>>, &GateInputs, &GateOuputs), With<IOBus>>,
+    bus_query: Query<(&IOBus<B>, &GateInputs, &GateOuputs)>,
     mut buffers: ResMut<Assets<IOBuffer<B>>>,
     mut wire_query: Query<&mut WireState<V, C>>,
 ) {
     // for each IO bus
-    for (buffer_handle, ref_inputs, ref_outputs) in bus_query.iter() {
+    for (io_bus, ref_inputs, ref_outputs) in bus_query.iter() {
         // recover the shared buffer for this IO bus
-        if let Some(buffer) = buffers.get_mut(buffer_handle) {
+        if let Some(buffer) = buffers.get_mut(&io_bus.buffer_handle) {
             // for each wire input references,
             // transmit the value to the output buffer
             for &id in ref_inputs.iter() {

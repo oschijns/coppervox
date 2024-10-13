@@ -9,11 +9,17 @@ pub struct ConstantGate<V> {
     value: V,
 }
 
+impl<V> ConstantGate<V> {
+    pub fn new(value: V) -> Self {
+        Self { value }
+    }
+}
+
 /// Used to construct a constant gate
 #[derive(Bundle)]
 pub struct ConstantGateBundle<V: Element> {
-    gate: ConstantGate<V>,
-    outputs: GateOuputs,
+    pub gate: ConstantGate<V>,
+    pub outputs: GateOuputs,
 }
 
 /// For each constant gate in the simulation,
