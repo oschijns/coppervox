@@ -1,62 +1,71 @@
+/// Find the number of contact points between blobs of voxels
 pub mod connectivity;
+
+/// Represent an island of similar voxels
 pub mod island;
+
+/// Identify blob of similar voxel and assign a label to them
 pub mod labeling;
+
+/// Generate a mesh from a blob of voxels
 pub mod mesh;
+
+/// Identify a pattern from a blob of voxels
 pub mod pattern;
 
+use super::{array3, model::VoxModel, Cell};
+use bevy::{
+    asset::{Assets, Handle},
+    ecs::system::EntityCommands,
+    pbr::{Material, MaterialMeshBundle},
+    prelude::{default, Commands, Entity, Mesh, ResMut, Transform},
+};
+use connectivity::connectivity;
+use labeling::{Label, LabeledModel};
+use mesh::{BlockMeshMatrix, BoolVoxel};
+use pattern::PatternId;
+use petgraph::{
+    csr::{Csr, NodeIndex},
+    visit::{EdgeRef, IntoEdgeReferences, IntoNodeReferences},
+    Undirected,
+};
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
 };
 
-use crate::{
-    array3,
-    model::{VoxIndex, VoxModel},
-};
-use bevy::{
-    asset::{Assets, Handle},
-    prelude::{Mesh, ResMut},
-};
-use block_mesh::{MergeVoxel, Voxel, VoxelVisibility};
-use connectivity::connectivity;
-use labeling::label_model;
-use mesh::BlockMeshMatrix;
-use pattern::PatternId;
-use petgraph::{
-    csr::{Csr, NodeIndex},
-    visit::IntoEdgeReferences,
-    Directed,
-};
-
-use super::Cell;
-
 /// Define the elements of the circuit
-pub struct CircuitData<T> {
+pub struct CircuitData<T, W> {
     /// The elements of the circuit
-    elements: Csr<CircuitElement<T>, (), Directed>,
+    circuit: Csr<CircuitElement<T, W>, bool, Undirected>,
 }
 
 /// Define an element of the circuit
-pub struct CircuitElement<T> {
+pub struct CircuitElement<T, W> {
     /// The type of the element
-    element_type: T,
+    element_type: ElementType<T, W>,
 
-    /// Position of the element
-    position: VoxIndex,
+    /// Transform of the element
+    transform: Transform,
 
     /// The mesh used to render the element
     mesh_handle: Handle<Mesh>,
 }
 
-impl<T: Copy + Typed> CircuitData<T> {
+impl<T: Copy + Hash + Eq, W: Clone + From<usize>> CircuitData<T, W> {
     /// Analyze the voxel model to prepare a circuit
     /// that can be used to generate bevy entities.
-    pub fn generate<C: Cell + Into<T> + Hash, const D: usize>(
-        model: &VoxModel<C, D>,
-        threshold: usize,
+    pub fn generate<
+        C: Converter<V, T, W>,
+        V: Cell + Default + Copy + Into<T> + Hash + Eq,
+        const D: usize,
+    >(
         mut meshes: ResMut<Assets<Mesh>>,
+        model: &VoxModel<V, D>,
+        converter: &C,
+        threshold: usize,
     ) -> Self {
-        let labeled = label_model::<C, D, usize, T>(&model);
+        let labeled = LabeledModel::from_model(&model);
 
         // Generate the meshes that will be used by bevy
         let mut mesh_map =
@@ -82,128 +91,167 @@ impl<T: Copy + Typed> CircuitData<T> {
         let graph = connectivity(&matrix, &labels);
 
         // generate the circuit data
-        let mut elements = Csr::<CircuitElement<T>, (), Directed>::new();
-        let mut node_map = HashMap::<usize, NodeIndex>::with_capacity(labeled.islands.len());
+        let mut circuit = Csr::<CircuitElement<T, W>, bool, Undirected>::new();
+        let mut node_map = HashMap::<Label, NodeIndex>::with_capacity(labeled.islands.len());
         for (&label, island) in &labeled.islands {
-            let index = elements.add_node(CircuitElement {
-                element_type: island.value,
-                position: island.bounding_box[0],
+            let pos = island.bounding_box[0];
+            let index = circuit.add_node(CircuitElement {
+                element_type: converter.convert(&island.value),
+                transform: Transform::from_xyz(pos[0] as f32, pos[1] as f32, pos[2] as f32),
                 mesh_handle: mesh_map[&island.pattern_id].clone(),
             });
             node_map.insert(label, index);
         }
 
         // iterate over every contacts in the graph
-        for (node1, node2, &edge) in graph.edge_references() {
-            // connection can only be established between
-            // a wire and another component that is not a wire
-            let label1 = graph.node_weight(node1);
-            let label2 = graph.node_weight(node2);
+        for (index1, index2, &edge) in graph.edge_references() {
+            // connection can only be established between two elements
+            // if one is a wire and the other is a component
+            let label1 = graph.node_weight(index1);
+            let label2 = graph.node_weight(index2);
             if label1 != label2 {
-                macro_rules! match_label_with_type {
+                // access the circuit element from the label
+                macro_rules! label_to_element {
                     ($label:ident) => {
-                        if let Some(island) = labeled.islands.get(&$label) {
-                            island.value
+                        if let Some(&node_index) = node_map.get($label) {
+                            let element = &circuit[node_index];
+                            match element.element_type {
+                                ElementType::Neither => {
+                                    continue;
+                                }
+                                _ => (node_index, element),
+                            }
                         } else {
                             continue;
                         }
                     };
                 }
+                let (index1, element1) = label_to_element![label1];
+                let (index2, element2) = label_to_element![label2];
 
-                let type1 = match_label_with_type![label1];
-                let type2 = match_label_with_type![label2];
-                if type1.is_wire() != type2.is_wire() {
-                    // the two elements should be connected
-                    let (the_wire, the_comp) = if type1.is_wire() {
-                        (label1, label2)
-                    } else {
-                        (label2, label1)
-                    };
+                // identify the elements: wire and component
+                let (index_wire, index_comp) = match element1.element_type {
+                    ElementType::Component(_) => {
+                        if let ElementType::Wire(_) = element2.element_type {
+                            (index2, index1)
+                        } else {
+                            continue;
+                        }
+                    }
+                    ElementType::Wire(_) => {
+                        if let ElementType::Component(_) = element2.element_type {
+                            (index1, index2)
+                        } else {
+                            continue;
+                        }
+                    }
+                    _ => {
+                        continue;
+                    }
+                };
 
-                    // the threshold specify the direction of the connection:
-                    // <  threshold: from the wire to the component
-                    // >= threshold: from the component to the wire
-                    let node_wire = node_map[the_wire];
-                    let node_comp = node_map[the_comp];
-                    if edge < threshold {
-                        elements.add_edge(node_comp, node_wire, ());
-                    } else {
-                        elements.add_edge(node_wire, node_comp, ());
+                // check the number of contact points between the wire and
+                // the component to know if the wire is an input or an output
+                circuit.add_edge(index_comp, index_wire, edge >= threshold);
+            }
+        }
+        Self { circuit }
+    }
+}
+
+/// Convert a voxel value into either a component type or a wire channel
+pub trait Converter<V, T, W> {
+    /// Take a voxel value as input and return the corresponding element
+    fn convert(&self, voxel: &V) -> ElementType<T, W>;
+}
+
+/// The types of elements that are part of a circuit
+pub enum ElementType<T, W> {
+    /// An actual component (logic gate, bus, etc..)
+    Component(T),
+
+    /// A wire with a given channel
+    Wire(W),
+
+    /// Not an element
+    Neither,
+}
+
+impl<T, W> CircuitData<T, W> {
+    /// Generate the bevy entities
+    pub fn build<B: Builder<T, W, M>, M: Material>(&self, mut cmd: Commands, builder: &B) {
+        // FIRST: create the entities for the wires
+        let mut wire_map = HashMap::<NodeIndex, Entity>::with_capacity(self.circuit.node_count());
+        for (index, element) in self.circuit.node_references() {
+            // only create entities for wires at first
+            if let ElementType::Wire(channel) = &element.element_type {
+                // spawn an entity for the wire
+                let mut cmd = cmd.spawn(MaterialMeshBundle {
+                    mesh: element.mesh_handle.clone(),
+                    material: builder.get_material(&element.element_type),
+                    transform: element.transform,
+                    ..default()
+                });
+
+                // call the builder to add the wire behavior
+                builder.set_wire(&mut cmd, channel);
+
+                // keep track of the wire generated for the other components
+                wire_map.insert(index, cmd.id());
+            }
+        }
+
+        // SECOND: create entities for the components
+        for (index, element) in self.circuit.node_references() {
+            // only create entities for components then
+            if let ElementType::Component(comp_type) = &element.element_type {
+                // spawn an entity for the component
+                let mut cmd = cmd.spawn(MaterialMeshBundle {
+                    mesh: element.mesh_handle.clone(),
+                    material: builder.get_material(&element.element_type),
+                    transform: element.transform,
+                    ..default()
+                });
+
+                // look for the input and the output wires of the component
+                let edges = self.circuit.edges(index);
+                let size = edges.size_hint().0;
+                let mut inputs = Vec::with_capacity(size);
+                let mut outputs = Vec::with_capacity(size);
+
+                for edge in edges {
+                    if let Some(&wire_entity) = wire_map.get(&edge.target()) {
+                        if *edge.weight() {
+                            outputs.push(wire_entity);
+                        } else {
+                            inputs.push(wire_entity);
+                        }
                     }
                 }
+
+                // call the builder to add the component behavior
+                builder.set_component(&mut cmd, comp_type, &inputs, &outputs);
             }
         }
-
-        Self { elements }
     }
 }
 
-/// Trait for labeling
-pub trait Label: Cell + Ord + std::hash::Hash {
-    /// Create an initial label for the algorithm
-    fn start() -> Self;
+/// Add the necessary components to bevy entities
+pub trait Builder<T, W, M: Material> {
+    /// Get the material to apply to the entity
+    fn get_material(&self, entity_type: &ElementType<T, W>) -> Handle<M>;
 
-    /// Move on to the next usable label
-    fn next(&mut self) -> &Self;
-}
+    /// Set the entity to behave as a wire
+    fn set_wire(&self, cmd: &mut EntityCommands, channel: &W);
 
-macro_rules! impl_label {
-    ($type:ty) => {
-        impl Label for $type {
-            fn start() -> Self {
-                1
-            }
-
-            fn next(&mut self) -> &Self {
-                *self += 1;
-                self
-            }
-        }
-    };
-}
-
-impl_label![u8];
-impl_label![u16];
-impl_label![u32];
-impl_label![u64];
-impl_label![usize];
-impl_label![i8];
-impl_label![i16];
-impl_label![i32];
-impl_label![i64];
-impl_label![isize];
-
-/// Represent a component that has been typed
-pub trait Typed {
-    /// Specify if the typed component is a wire or not
-    fn is_wire(&self) -> bool;
-}
-
-#[derive(Default, Clone, Copy, Eq, PartialEq)]
-struct BoolVoxel(bool);
-
-impl Voxel for BoolVoxel {
-    fn get_visibility(&self) -> VoxelVisibility {
-        if self.0 {
-            VoxelVisibility::Opaque
-        } else {
-            VoxelVisibility::Empty
-        }
-    }
-}
-
-impl MergeVoxel for BoolVoxel {
-    type MergeValue = Self;
-
-    fn merge_value(&self) -> Self::MergeValue {
-        *self
-    }
-}
-
-impl From<bool> for BoolVoxel {
-    fn from(value: bool) -> Self {
-        Self(value)
-    }
+    /// Set the entity to behave as a component
+    fn set_component(
+        &self,
+        cmd: &mut EntityCommands,
+        comp_type: &T,
+        inputs: &[Entity],
+        outputs: &[Entity],
+    );
 }
 
 #[cfg(test)]
@@ -211,11 +259,5 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_label() {
-        let mut label = u32::start();
-
-        assert_eq![label.is_empty(), false];
-        assert_eq![label, 1];
-        assert_eq![*label.next(), 2];
-    }
+    fn test_label() {}
 }

@@ -225,7 +225,7 @@ pub trait IterFilter<C> {
 
 /// Default filter to skip empty cells only
 #[derive(Default)]
-pub struct FilterDef<C: Default> {
+pub struct FilterDef<C> {
     phantom: PhantomData<C>,
 }
 

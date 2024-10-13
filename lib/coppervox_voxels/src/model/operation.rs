@@ -6,7 +6,7 @@ use super::{bounding_box::is_in_boxes, VoxBox, VoxIndex, VoxModel};
 use crate::Cell;
 
 /// Implement some operations for voxel models
-impl<C: Cell, const D: usize> VoxModel<C, D> {
+impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
     /// Apply the given transformation to generate a new matrix
     pub fn transform(&self, transform: &Matrix4<isize>) -> Self {
         let mut model = Self::default();

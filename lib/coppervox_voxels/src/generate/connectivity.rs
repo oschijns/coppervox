@@ -1,4 +1,4 @@
-use super::Label;
+use super::labeling::Label;
 use ndarray::{Array3, ArrayBase, Ix3, RawData};
 use petgraph::{
     matrix_graph::{MatrixGraph, NodeIndex},
@@ -7,22 +7,22 @@ use petgraph::{
 use std::collections::{HashMap, HashSet};
 
 /// for each labeled island in the matrix, compute the connectivity with other matrices
-pub fn connectivity<L: Label, R: RawData>(
+pub fn connectivity<R: RawData>(
     matrix: &ArrayBase<R, Ix3>,
-    labels: &HashSet<L>,
-) -> MatrixGraph<L, usize, Undirected> {
+    labels: &HashSet<Label>,
+) -> MatrixGraph<Label, usize, Undirected> {
     // allocate the output graph with undirected edges
-    let mut graph = MatrixGraph::<L, usize, Undirected>::with_capacity(labels.len());
+    let mut graph = MatrixGraph::<Label, usize, Undirected>::with_capacity(labels.len());
 
     // generate a node for each label
-    let label_to_node_index: HashMap<L, NodeIndex> = labels
+    let label_to_node_index: HashMap<Label, NodeIndex> = labels
         .iter()
         .map(|label| (*label, graph.add_node(*label)))
         .collect();
 
     // create a new matrix to add the node index data
     let mut node_index_matrix =
-        Array3::<(L, Option<NodeIndex>)>::from_elem(matrix.dim(), (L::default(), None));
+        Array3::<(Label, Option<NodeIndex>)>::from_elem(matrix.dim(), (0, None));
 
     // copy the initial matrix and add the node index for each cell
     for cell in node_index_matrix.iter_mut() {

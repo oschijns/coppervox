@@ -1,7 +1,7 @@
 use super::{
     island::Island,
     pattern::{hash_matrix, PatternId},
-    Cell, Label,
+    Cell,
 };
 use crate::{
     array3,
@@ -11,29 +11,32 @@ use disjoint_hash_set::DisjointHashSet;
 use ndarray::Array3;
 use std::{cmp::min, collections::HashMap};
 
+/// Type used to label islands in the 3D matrices
+pub type Label = usize;
+
 /// The result of labeling a voxel model for rendering and logic circuit generation
-pub struct LabelingResult<L, const D: usize, V> {
+pub struct LabeledModel<V, const D: usize> {
     /// the voxel model of labeled islands
-    pub labeled_model: VoxModel<L, D>,
+    pub labeled_model: VoxModel<Label, D>,
 
     /// the mapping between labels and islands
-    pub islands: HashMap<L, Island<V>>,
+    pub islands: HashMap<Label, Island<V>>,
 
     /// the mapping between pattern identifier and
     /// the corresponding 3D shape to build a mesh from
     pub patterns: HashMap<PatternId, Array3<bool>>,
 }
 
-/// Label an input model for rendering and logic circuit generation
-pub fn label_model<C: Cell + Into<V>, const D: usize, L: Label + Into<usize>, V: Copy>(
-    model: &VoxModel<C, D>,
-) -> LabelingResult<L, D, V> {
-    let (labeled_model, mut islands) = connected_component_labeling(model);
-    let patterns = identify_patterns(&labeled_model, &mut islands);
-    LabelingResult::<L, D, V> {
-        labeled_model,
-        islands,
-        patterns,
+impl<V: Cell + Default + Copy + Eq, const D: usize> LabeledModel<V, D> {
+    /// Label an input model for rendering and logic circuit generation
+    pub fn from_model(model: &VoxModel<V, D>) -> Self {
+        let (labeled_model, mut islands) = connected_component_labeling(model);
+        let patterns = identify_patterns(&labeled_model, &mut islands);
+        Self {
+            labeled_model,
+            islands,
+            patterns,
+        }
     }
 }
 
@@ -46,26 +49,21 @@ pub fn label_model<C: Cell + Into<V>, const D: usize, L: Label + Into<usize>, V:
 
 /// Apply a two pass 6-connected component labeling algorithm
 /// to the input model to generate an output a model with labelling
-fn connected_component_labeling<
-    C: Cell + Into<V>,
-    const D: usize,
-    L: Label + Into<usize>,
-    V: Copy,
->(
-    model: &VoxModel<C, D>,
-) -> (VoxModel<L, D>, HashMap<L, Island<V>>) {
+fn connected_component_labeling<V: Cell + Default + Copy + Eq, const D: usize>(
+    model: &VoxModel<V, D>,
+) -> (VoxModel<Label, D>, HashMap<Label, Island<V>>) {
     // create new labels as we generate islands
-    let mut current_label = L::start();
+    let mut current_label = 1;
 
     // allocate a matrix for labeling the cells
-    let mut labeled_model = VoxModel::<L, D>::default();
+    let mut labeled_model = VoxModel::<Label, D>::default();
 
     // Generate a disjoint set to group labels together.
     // This allows to reassign labels during the second pass.
-    let mut disjoint_set = DisjointHashSet::<L>::new();
+    let mut disjoint_set = DisjointHashSet::<Label>::new();
 
     // store the association between temporary labels and initial values
-    let mut association = HashMap::<L, V>::new();
+    let mut association = HashMap::<Label, V>::new();
 
     /* FIRST PASS */
     // iterate over the whole matrix a first time
@@ -89,7 +87,7 @@ fn connected_component_labeling<
                         mask |= $mask;
                         labeled_model[__index]
                     } else {
-                        L::default()
+                        0
                     }
                 }};
             }
@@ -114,7 +112,7 @@ fn connected_component_labeling<
                 0b000 => {
                     store_label!(current_label);
                     disjoint_set.insert(current_label);
-                    current_label.next();
+                    current_label += 1;
                 }
 
                 // connection only along X
@@ -165,13 +163,13 @@ fn connected_component_labeling<
 
     /* SECOND PASS */
     let label_count: usize = current_label.into();
-    current_label = L::start();
+    current_label = 1;
 
     // reassign the labels based on the groups found within the disjoint set
-    let mut remap = HashMap::<L, L>::with_capacity(label_count);
+    let mut remap = HashMap::<Label, Label>::with_capacity(label_count);
 
     // create a map where labels are associated with data describing an island
-    let mut labels = HashMap::<L, Island<V>>::with_capacity(label_count);
+    let mut labels = HashMap::<Label, Island<V>>::with_capacity(label_count);
 
     // regroup labels that are connected under a single label
     for group in disjoint_set.sets() {
@@ -194,7 +192,7 @@ fn connected_component_labeling<
         }
 
         // create a new label for the next potential group
-        current_label.next();
+        current_label += 1;
     }
 
     // reassign the labels in the matrix
@@ -207,9 +205,9 @@ fn connected_component_labeling<
 
 /// For each labeled island in the matrix, find the corresponding bounding box.
 /// Create a matrix of booleans to identify the pattern corresponding to the label.
-fn identify_patterns<L: Label, const D: usize, V>(
-    labeled_model: &VoxModel<L, D>,
-    islands: &mut HashMap<L, Island<V>>,
+fn identify_patterns<V, const D: usize>(
+    labeled_model: &VoxModel<Label, D>,
+    islands: &mut HashMap<Label, Island<V>>,
 ) -> HashMap<PatternId, Array3<bool>> {
     /* FIRST PASS */
     // explore the matrix and identify the boundaries of each island

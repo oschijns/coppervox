@@ -39,7 +39,7 @@ pub struct VoxModel<C, const D: usize> {
 }
 
 /// Convert the voxel model into a 3D matrix
-impl<C: Default + Cell, const D: usize> VoxModel<C, D> {
+impl<C: Cell + Default + Copy, const D: usize> VoxModel<C, D> {
     /// Convert the voxel model into a 3D matrix
     pub fn to_matrix(&self) -> Array3<C> {
         // find the min and max indexes of the chunks
@@ -107,7 +107,7 @@ impl<C: Default + Cell, const D: usize> VoxModel<C, D> {
 }
 
 /// Indexing for voxel model
-impl<C: Default + Copy, const D: usize> Index<VoxIndex> for VoxModel<C, D> {
+impl<C: Copy, const D: usize> Index<VoxIndex> for VoxModel<C, D> {
     type Output = C;
 
     /// index a value of the infinite matrix using three signed integers

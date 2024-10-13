@@ -4,7 +4,7 @@ pub mod macros;
 pub mod model;
 
 /// Trait for cells in a matrix
-pub trait Cell: Default + Copy + Eq {
+pub trait Cell {
     /// Return true if the cell is empty
     fn is_empty(&self) -> bool;
 }

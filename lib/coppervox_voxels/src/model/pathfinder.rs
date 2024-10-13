@@ -13,7 +13,7 @@ pub type VoxPath = Vec<VoxIndex>;
 
 /// Run the A* pathfinding algorithm to find all path from start to end passign
 /// through empty cells and avoiding changing direction too often.
-pub fn find_path<C: Cell, const D: usize>(
+pub fn find_path<C: Cell + Default + Copy, const D: usize>(
     model: &VoxModel<C, D>,
     start_index: &VoxIndex,
     end_index: &VoxIndex,
@@ -173,7 +173,7 @@ fn manhattan_distance(pos_a: &VoxIndex, pos_b: &VoxIndex) -> usize {
 }
 
 /// find the successors of the current index provided
-fn find_successors<C: Cell, const D: usize>(
+fn find_successors<C: Cell + Default + Copy, const D: usize>(
     model: &VoxModel<C, D>,
     node: &PathNode,
     end_index: &VoxIndex,

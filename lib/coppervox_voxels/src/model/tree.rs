@@ -17,7 +17,7 @@ pub struct VoxNode<C, const D: usize, P> {
     /// or being overwritten by the voxels of other nodes.
     relative_priority: P,
 
-    /// The relative transformation matrix to apply to  
+    /// The relative transformation matrix to apply to
     /// this voxel model and all of its children.
     relative_transform: Matrix4<isize>,
 
@@ -27,7 +27,7 @@ pub struct VoxNode<C, const D: usize, P> {
 }
 
 /// Combine all the models in the tree into a single model made of voxels
-pub fn merge_tree<C: Cell, const D: usize, P: Priority>(
+pub fn merge_tree<C: Cell + Default + Copy, const D: usize, P: Priority>(
     tree: &Tree<VoxNode<C, D, P>>,
 ) -> VoxModel<(C, P), D> {
     // the canvas where to draw all of the models contained in the tree
@@ -46,7 +46,7 @@ pub fn merge_tree<C: Cell, const D: usize, P: Priority>(
 /// Apply the matrix stored in this node and its children to the canvas provided.
 /// cumulated priority and transform are the result of recursive calls to the
 /// `apply_node` function on nodes and their children.
-fn write_node_to_canvas<C: Cell, const D: usize, P: Priority>(
+fn write_node_to_canvas<C: Cell + Default + Copy, const D: usize, P: Priority>(
     cumulated_priority: P,
     cumulated_transform: &Matrix4<isize>,
     node: NodeRef<'_, VoxNode<C, D, P>>,
@@ -73,7 +73,7 @@ fn write_node_to_canvas<C: Cell, const D: usize, P: Priority>(
 
 /// Write a model to the canvas using the given absolute
 /// priority and the given absolute transform.
-fn write_model_to_canvas<C: Cell, const D: usize, P: Priority>(
+fn write_model_to_canvas<C: Cell + Default + Copy, const D: usize, P: Priority>(
     priority: P,
     transform: &Matrix4<isize>,
     model: &Shared<VoxModel<C, D>>,

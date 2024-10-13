@@ -4,7 +4,8 @@ use bevy::render::{
     render_resource::PrimitiveTopology,
 };
 use block_mesh::{
-    greedy_quads, GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG,
+    greedy_quads, GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, Voxel, VoxelVisibility,
+    RIGHT_HANDED_Y_UP_CONFIG,
 };
 use ndarray::Array3;
 use ndshape::{RuntimeShape, Shape};
@@ -106,5 +107,39 @@ impl<V: Default + Clone> BlockMeshMatrix<V> {
             shape,
             quads_config: RIGHT_HANDED_Y_UP_CONFIG,
         }
+    }
+}
+
+/// Define a boolean which can implement block_mesh traits
+#[derive(Default, Clone, Copy, Eq, PartialEq)]
+pub struct BoolVoxel(bool);
+
+impl Voxel for BoolVoxel {
+    fn get_visibility(&self) -> VoxelVisibility {
+        if self.0 {
+            VoxelVisibility::Opaque
+        } else {
+            VoxelVisibility::Empty
+        }
+    }
+}
+
+impl MergeVoxel for BoolVoxel {
+    type MergeValue = Self;
+
+    fn merge_value(&self) -> Self::MergeValue {
+        *self
+    }
+}
+
+impl From<bool> for BoolVoxel {
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
+impl From<BoolVoxel> for bool {
+    fn from(value: BoolVoxel) -> Self {
+        value.0
     }
 }

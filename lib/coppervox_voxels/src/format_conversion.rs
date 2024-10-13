@@ -18,11 +18,11 @@ pub enum OriginConfig {
 /// Conversion of Magica Voxel
 pub mod magica_voxel {
     use super::OriginConfig;
-    use crate::{model::VoxModel, Cell};
+    use crate::model::VoxModel;
     use dot_vox::{Model, Size, Voxel};
 
     /// Conversion of Magica Voxel into ndarray::Array3
-    pub fn convert<C: Cell + From<u8>, const D: usize>(
+    pub fn convert<C: Default + Copy + From<u8>, const D: usize>(
         model: &Model,
         origin_config: &[OriginConfig; 3],
     ) -> VoxModel<C, D> {
@@ -61,14 +61,14 @@ pub mod magica_voxel {
 
 /// Conversion of 2D image
 pub mod image_2d {
-    use crate::{model::VoxModel, Cell};
+    use crate::model::VoxModel;
     use image::GenericImageView;
 
     use super::OriginConfig;
 
     /// Conversion of Generic 2D image into ndarray::Array2
     pub fn convert<
-        C: Cell + From<<I as GenericImageView>::Pixel>,
+        C: Default + Copy + From<<I as GenericImageView>::Pixel>,
         const D: usize,
         I: GenericImageView,
     >(
