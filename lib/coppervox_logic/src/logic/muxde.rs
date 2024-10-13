@@ -79,7 +79,7 @@ pub fn process_multiplex<
 /// Set each of its outputs to the single value.
 pub fn process_demultiplex<
     R: Element + for<'a> From<&'a V>,
-    V: Element + Copy + Value,
+    V: Element + Copy + Value + Default,
     C: Element + Copy,
     B: ValueBuffer<V, C>,
     F: Element + Fn(&V) -> B,

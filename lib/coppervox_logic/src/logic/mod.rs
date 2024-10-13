@@ -27,10 +27,41 @@ use bevy::prelude::*;
 use std::slice::Iter;
 
 /// Represent a value transmitted over a wire
-pub trait Value: Default {
+pub trait Value {
     /// used to fuse values together
     fn fuse_with(&mut self, other: &Self);
 }
+
+/// Implement the value trait for basic integer types
+macro_rules! impl_value {
+    ($type:ty as bitmask) => {
+        impl Value for $type {
+            fn fuse_with(&mut self, other: &Self) {
+                *self |= other;
+            }
+        }
+    };
+    ($type:ty as factor) => {
+        impl Value for $type {
+            fn fuse_with(&mut self, other: &Self) {
+                *self *= other;
+            }
+        }
+    };
+}
+
+impl_value![u8 as bitmask];
+impl_value![u16 as bitmask];
+impl_value![u32 as bitmask];
+impl_value![u64 as bitmask];
+impl_value![usize as bitmask];
+impl_value![i8 as bitmask];
+impl_value![i16 as bitmask];
+impl_value![i32 as bitmask];
+impl_value![i64 as bitmask];
+impl_value![isize as bitmask];
+impl_value![f32 as factor];
+impl_value![f64 as factor];
 
 /// Represent a group of values splitted over multiple channels
 pub trait ValueBuffer<V, C>: Default {
@@ -47,10 +78,42 @@ pub struct GateInputs {
     wire_references: Vec<Entity>,
 }
 
+impl GateInputs {
+    pub fn new(wires: &[Entity]) -> Self {
+        Self {
+            wire_references: wires.to_vec(),
+        }
+    }
+}
+
+impl From<Vec<Entity>> for GateInputs {
+    fn from(wires: Vec<Entity>) -> Self {
+        Self {
+            wire_references: wires,
+        }
+    }
+}
+
 /// References to the outputs of a given components.
 #[derive(Component)]
 pub struct GateOuputs {
     wire_references: Vec<Entity>,
+}
+
+impl GateOuputs {
+    pub fn new(wires: &[Entity]) -> Self {
+        Self {
+            wire_references: wires.to_vec(),
+        }
+    }
+}
+
+impl From<Vec<Entity>> for GateOuputs {
+    fn from(wires: Vec<Entity>) -> Self {
+        Self {
+            wire_references: wires,
+        }
+    }
 }
 
 /// implements function to expose the inner vector of GateInputs and GateOutputs

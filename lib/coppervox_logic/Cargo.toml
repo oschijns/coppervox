@@ -12,6 +12,7 @@ edition = "2021"
 
 [dependencies]
 bevy = "0.14"
-bytemuck = "1.17"
+num = "0.4"
+#bytemuck = "1.17"
 #bevy_kira_audio = "0.19"
 #bevy_asset_loader = "0.20"
