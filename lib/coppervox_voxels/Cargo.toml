@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [dependencies]
-bevy = "0.14"
+bevy = "0.15"
 bitvec = "1"
 block-mesh = "0.2"
 disjoint-hash-set = "1.0"

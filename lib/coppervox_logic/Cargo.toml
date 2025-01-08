@@ -11,7 +11,7 @@ edition = "2021"
 
 
 [dependencies]
-bevy = "0.14"
+bevy = "0.15"
 num = "0.4"
 #bytemuck = "1.17"
 #bevy_kira_audio = "0.19"

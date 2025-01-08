@@ -17,8 +17,8 @@ use super::{array3, model::VoxModel, Cell};
 use bevy::{
     asset::{Assets, Handle},
     ecs::system::EntityCommands,
-    pbr::{Material, MaterialMeshBundle},
-    prelude::{default, Commands, Entity, Mesh, ResMut, Transform},
+    pbr::{Material, MeshMaterial3d},
+    prelude::{Commands, Entity, Mesh, Mesh3d, ResMut, Transform},
 };
 use connectivity::connectivity;
 use labeling::{Label, LabeledModel};
@@ -190,12 +190,11 @@ impl<T, W> CircuitData<T, W> {
             // only create entities for wires at first
             if let ElementType::Wire(channel) = &element.element_type {
                 // spawn an entity for the wire
-                let mut cmd = cmd.spawn(MaterialMeshBundle {
-                    mesh: element.mesh_handle.clone(),
-                    material: builder.get_material(&element.element_type),
-                    transform: element.transform,
-                    ..default()
-                });
+                let mut cmd = cmd.spawn((
+                    Mesh3d(element.mesh_handle.clone()),
+                    MeshMaterial3d(builder.get_material(&element.element_type)),
+                    element.transform,
+                ));
 
                 // call the builder to add the wire behavior
                 builder.set_wire(&mut cmd, channel);
@@ -210,12 +209,11 @@ impl<T, W> CircuitData<T, W> {
             // only create entities for components then
             if let ElementType::Component(comp_type) = &element.element_type {
                 // spawn an entity for the component
-                let mut cmd = cmd.spawn(MaterialMeshBundle {
-                    mesh: element.mesh_handle.clone(),
-                    material: builder.get_material(&element.element_type),
-                    transform: element.transform,
-                    ..default()
-                });
+                let mut cmd = cmd.spawn((
+                    Mesh3d(element.mesh_handle.clone()),
+                    MeshMaterial3d(builder.get_material(&element.element_type)),
+                    element.transform,
+                ));
 
                 // look for the input and the output wires of the component
                 let edges = self.circuit.edges(index);

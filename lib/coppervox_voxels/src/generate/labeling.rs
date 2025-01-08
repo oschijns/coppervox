@@ -1,3 +1,10 @@
+/*!
+ * This script use a two-pass implementation of
+ * the 6-connected component labeling algorithm.
+ * It uses a disjoint-set to regroup connected
+ * islands together.
+ * */
+
 use super::{
     island::Island,
     pattern::{hash_matrix, PatternId},
@@ -39,13 +46,6 @@ impl<V: Cell + Default + Copy + Eq, const D: usize> LabeledModel<V, D> {
         }
     }
 }
-
-/**
- * This script use a two-pass implementation of
- * the 6-connected component labeling algorithm.
- * It uses a disjoint-set to regroup connected
- * islands together.
- * */
 
 /// Apply a two pass 6-connected component labeling algorithm
 /// to the input model to generate an output a model with labelling

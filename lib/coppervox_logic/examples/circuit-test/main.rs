@@ -1,10 +1,7 @@
 extern crate coppervox_logic;
 use bevy::color::palettes::css;
 use bevy::prelude::*;
-use coppervox_logic::logic::{
-    operation_gate::{bitwise_and, bitwise_nor, OperationGateBundle},
-    wire::WireState,
-};
+use coppervox_logic::logic::{operation_gate::OperationGateBundle, wire::WireState};
 
 fn main() {
     App::new()
@@ -89,36 +86,27 @@ fn build_circuit(
             .spawn((
                 WireState::<Channel, Value>::new(0),
                 materials_wire[0].clone(),
-                PbrBundle {
-                    mesh: mesh.clone(),
-                    material: materials_wire[0].material_off.clone(),
-                    transform: Transform::from_xyz(-2.0, 0.0, -20.0),
-                    ..default()
-                },
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(materials_wire[0].material_off.clone()),
+                Transform::from_xyz(-2.0, 0.0, -20.0),
             ))
             .id(),
         commands
             .spawn((
                 WireState::<Channel, Value>::new(1),
                 materials_wire[1].clone(),
-                PbrBundle {
-                    mesh: mesh.clone(),
-                    material: materials_wire[1].material_off.clone(),
-                    transform: Transform::from_xyz(0.0, 0.0, -20.0),
-                    ..default()
-                },
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(materials_wire[1].material_off.clone()),
+                Transform::from_xyz(0.0, 0.0, -20.0),
             ))
             .id(),
         commands
             .spawn((
                 WireState::<Channel, Value>::new(2),
                 materials_wire[2].clone(),
-                PbrBundle {
-                    mesh: mesh.clone(),
-                    material: materials_wire[2].material_off.clone(),
-                    transform: Transform::from_xyz(2.0, 0.0, -20.0),
-                    ..default()
-                },
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(materials_wire[2].material_off.clone()),
+                Transform::from_xyz(2.0, 0.0, -20.0),
             ))
             .id(),
     ];
@@ -129,5 +117,5 @@ fn build_circuit(
         &[wires[2]],
     ));
 
-    commands.spawn((Camera3dBundle::default(), MyCamera {}));
+    commands.spawn((Camera3d::default(), MyCamera {}));
 }
