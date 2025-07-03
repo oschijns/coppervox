@@ -1,0 +1,13 @@
+[package]
+name = "coppervox-logic"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+
+[dependencies]
+bevy.workspace = true
+num = "0.4"
+#bytemuck = "1.17"
+#bevy_kira_audio = "0.19"
+#bevy_asset_loader = "0.20"

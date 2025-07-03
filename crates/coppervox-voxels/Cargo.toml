@@ -1,11 +1,16 @@
 [package]
-name = "coppervox_voxels"
-version = "0.1.0"
-edition = "2021"
+name = "coppervox-voxels"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
 
 
 [dependencies]
-bevy = "0.15"
+bevy.workspace = true
+
+# Infinite map made of chunks containing cells
+gridmap = { git = "https://github.com/oschijns/gridmap.git", branch = "dev" }
+
 bitvec = "1"
 block-mesh = "0.2"
 disjoint-hash-set = "1.0"
