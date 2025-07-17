@@ -6,25 +6,23 @@
  * */
 
 use super::{
-    island::Island,
-    pattern::{hash_matrix, PatternId},
     Cell,
+    island::Island,
+    pattern::{PatternId, hash_matrix},
 };
-use crate::{
-    array3,
-    model::{bounding_box::BoundingBox, VoxModel},
-};
+use crate::{array3, model::VoxModel};
 use disjoint_hash_set::DisjointHashSet;
 use ndarray::Array3;
+use num::traits::ConstZero;
 use std::{cmp::min, collections::HashMap};
 
 /// Type used to label islands in the 3D matrices
 pub type Label = usize;
 
 /// The result of labeling a voxel model for rendering and logic circuit generation
-pub struct LabeledModel<V, const D: usize> {
+pub struct LabeledModel<V> {
     /// the voxel model of labeled islands
-    pub labeled_model: VoxModel<Label, D>,
+    pub labeled_model: VoxModel<Label>,
 
     /// the mapping between labels and islands
     pub islands: HashMap<Label, Island<V>>,
@@ -34,9 +32,12 @@ pub struct LabeledModel<V, const D: usize> {
     pub patterns: HashMap<PatternId, Array3<bool>>,
 }
 
-impl<V: Cell + Default + Copy + Eq, const D: usize> LabeledModel<V, D> {
+impl<V> LabeledModel<V>
+where
+    V: Cell + Default + Copy + Eq + ConstZero,
+{
     /// Label an input model for rendering and logic circuit generation
-    pub fn from_model(model: &VoxModel<V, D>) -> Self {
+    pub fn from_model(model: &VoxModel<V>) -> Self {
         let (labeled_model, mut islands) = connected_component_labeling(model);
         let patterns = identify_patterns(&labeled_model, &mut islands);
         Self {
@@ -49,14 +50,17 @@ impl<V: Cell + Default + Copy + Eq, const D: usize> LabeledModel<V, D> {
 
 /// Apply a two pass 6-connected component labeling algorithm
 /// to the input model to generate an output a model with labelling
-fn connected_component_labeling<V: Cell + Default + Copy + Eq, const D: usize>(
-    model: &VoxModel<V, D>,
-) -> (VoxModel<Label, D>, HashMap<Label, Island<V>>) {
+fn connected_component_labeling<V>(
+    model: &VoxModel<V>,
+) -> (VoxModel<Label>, HashMap<Label, Island<V>>)
+where
+    V: Cell + Default + Copy + Eq + ConstZero,
+{
     // create new labels as we generate islands
     let mut current_label = 1;
 
     // allocate a matrix for labeling the cells
-    let mut labeled_model = VoxModel::<Label, D>::default();
+    let mut labeled_model = VoxModel::<Label>::default();
 
     // Generate a disjoint set to group labels together.
     // This allows to reassign labels during the second pass.
@@ -67,7 +71,7 @@ fn connected_component_labeling<V: Cell + Default + Copy + Eq, const D: usize>(
 
     /* FIRST PASS */
     // iterate over the whole matrix a first time
-    for (indexes, &value) in model.iter() {
+    for (indexes, &value) in model.0.indexed_iter() {
         if !value.is_empty() {
             // connectivity mask
             // first each bit, indicate if the previous cell
@@ -196,7 +200,7 @@ fn connected_component_labeling<V: Cell + Default + Copy + Eq, const D: usize>(
     }
 
     // reassign the labels in the matrix
-    for (_, cell) in labeled_model.iter_mut() {
+    for cell in labeled_model.0.iter_mut() {
         *cell = remap[cell];
     }
 
@@ -205,13 +209,13 @@ fn connected_component_labeling<V: Cell + Default + Copy + Eq, const D: usize>(
 
 /// For each labeled island in the matrix, find the corresponding bounding box.
 /// Create a matrix of booleans to identify the pattern corresponding to the label.
-fn identify_patterns<V, const D: usize>(
-    labeled_model: &VoxModel<Label, D>,
+fn identify_patterns<V>(
+    labeled_model: &VoxModel<Label>,
     islands: &mut HashMap<Label, Island<V>>,
 ) -> HashMap<PatternId, Array3<bool>> {
     /* FIRST PASS */
     // explore the matrix and identify the boundaries of each island
-    for (index, label) in labeled_model.iter() {
+    for (index, label) in labeled_model.0.indexed_iter() {
         if let Some(island) = islands.get_mut(label) {
             island.grow_with(&index);
         }
@@ -229,14 +233,14 @@ fn identify_patterns<V, const D: usize>(
         let mut matrix = Array3::<bool>::from_elem(dimensions, false);
 
         // iterate over the area covered by the island
-        for (index, cell_label) in labeled_model.bounded_iter(island.bounding_box) {
+        for (index, cell_label) in labeled_model.0.bounded_iter(island.bounding_box) {
             if label == cell_label {
                 // count the cell as part of the island
                 island.count += 1;
 
                 // index to set in the matrix generated
                 let matrix_index = array3![for N in {
-                    index[N] - island.bounding_box[0][N]
+                    index[N] - island.bounding_box.start[N]
                 } -> ndarray::Ix];
                 matrix[matrix_index] = true;
             }

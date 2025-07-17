@@ -4,8 +4,8 @@ use bevy::render::{
     render_resource::PrimitiveTopology,
 };
 use block_mesh::{
-    greedy_quads, GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, Voxel, VoxelVisibility,
-    RIGHT_HANDED_Y_UP_CONFIG,
+    GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG, Voxel,
+    VoxelVisibility, greedy_quads,
 };
 use ndarray::Array3;
 use ndshape::{RuntimeShape, Shape};
@@ -109,6 +109,10 @@ impl<V: Default + Clone> BlockMeshMatrix<V> {
         }
     }
 }
+
+// TODO : replace BoolVoxel by a type that doesn't require rewriting a new matrix each time:
+// LabeledVoxel which store an usize
+// then use a static usize to specify which label we are processing in the get_visibility function
 
 /// Define a boolean which can implement block_mesh traits
 #[derive(Default, Clone, Copy, Eq, PartialEq)]

@@ -1,6 +1,6 @@
 use super::{VoxIndex, VoxModel};
 use crate::Cell;
-use num::Zero;
+use num::{Zero, traits::ConstZero};
 use pathfinding::directed::astar::astar_bag;
 use std::{
     cmp::Ordering,
@@ -13,11 +13,14 @@ pub type VoxPath = Vec<VoxIndex>;
 
 /// Run the A* pathfinding algorithm to find all path from start to end passign
 /// through empty cells and avoiding changing direction too often.
-pub fn find_path<C: Cell + Default + Copy, const D: usize>(
-    model: &VoxModel<C, D>,
+pub fn find_path<C>(
+    model: &VoxModel<C>,
     start_index: &VoxIndex,
     end_index: &VoxIndex,
-) -> Option<Vec<VoxPath>> {
+) -> Option<Vec<VoxPath>>
+where
+    C: Cell + Default + Copy + ConstZero,
+{
     // create an initial node
     let start_node = PathNode {
         position: *start_index,
@@ -91,11 +94,7 @@ impl Direction {
     /// Given the current direction and a new one,
     /// return the cost of changing direction.
     fn cost(&self, other: Self) -> usize {
-        if *self == other {
-            0
-        } else {
-            1
-        }
+        if *self == other { 0 } else { 1 }
     }
 }
 
@@ -173,11 +172,14 @@ fn manhattan_distance(pos_a: &VoxIndex, pos_b: &VoxIndex) -> usize {
 }
 
 /// find the successors of the current index provided
-fn find_successors<C: Cell + Default + Copy, const D: usize>(
-    model: &VoxModel<C, D>,
+fn find_successors<C>(
+    model: &VoxModel<C>,
     node: &PathNode,
     end_index: &VoxIndex,
-) -> Vec<(PathNode, Cost)> {
+) -> Vec<(PathNode, Cost)>
+where
+    C: Cell + Default + Copy + ConstZero,
+{
     // specify the offset of all the edges of a cube
     const EDGES: [VoxIndex; 12] = [
         [-1, -1, 0], // 0

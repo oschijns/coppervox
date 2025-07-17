@@ -1,19 +1,22 @@
+use super::{VoxBox, VoxIndex, VoxModel};
+use crate::Cell;
+use gridmap::gridmap::bounding_box::BoundingBox;
+use nalgebra::{Matrix4, Vector4};
+use num::traits::ConstZero;
 use std::collections::VecDeque;
 
-use nalgebra::{Matrix4, Vector4};
-
-use super::{bounding_box::is_in_boxes, VoxBox, VoxIndex, VoxModel};
-use crate::Cell;
-
 /// Implement some operations for voxel models
-impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
+impl<C> VoxModel<C>
+where
+    C: Cell + Default + Copy + Eq + ConstZero,
+{
     /// Apply the given transformation to generate a new matrix
     pub fn transform(&self, transform: &Matrix4<isize>) -> Self {
         let mut model = Self::default();
 
         // iterate over the whole model and transform
         // the index to write in the output model
-        for ([ix, iy, iz], cell) in self.iter() {
+        for ([ix, iy, iz], cell) in self.0.indexed_iter() {
             let trs = transform * Vector4::new(ix, iy, iz, 1);
             model[[trs.x, trs.y, trs.z]] = *cell;
         }
@@ -28,7 +31,7 @@ impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
         // for each box in the list,
         // copy the cells contained in it from one model to the other
         for abox in boxes {
-            for (index, cell) in self.bounded_iter(*abox) {
+            for (index, cell) in self.0.bounded_iter(*abox) {
                 model[index] = *cell;
             }
         }
@@ -44,7 +47,7 @@ impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
         // for each box in the list,
         // copy the cells contained in it from one model to the other
         for abox in boxes {
-            for ([ix, iy, iz], cell) in self.bounded_iter(*abox) {
+            for ([ix, iy, iz], cell) in self.0.bounded_iter(*abox) {
                 let trs = transform * Vector4::new(ix, iy, iz, 1);
                 model[[trs.x, trs.y, trs.z]] = *cell;
             }
@@ -57,7 +60,7 @@ impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
     pub fn replace(&mut self, boxes: &[VoxBox], new_value: C) {
         // for each box in the list, replace the cells by the one provided
         for abox in boxes {
-            for (_, cell) in self.bounded_iter_mut(*abox) {
+            for (_, cell) in self.0.bounded_iter_mut(*abox) {
                 *cell = new_value;
             }
         }
@@ -66,7 +69,7 @@ impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
     /// Given a starting point, perform a flood fill in the model
     /// A additional list of boxes must be given to ensure that the flood will
     /// not run endlessly incase the shape is not closed.
-    pub fn flood_fill(&mut self, start_index: VoxIndex, new_value: C, boundaries: &[VoxBox]) {
+    pub fn flood_fill(&mut self, start_index: VoxIndex, new_value: C, boundaries: &BoundingBox<3>) {
         let target = self[start_index];
 
         // if the value is the same, don't do anything
@@ -84,7 +87,7 @@ impl<C: Cell + Default + Copy + Eq, const D: usize> VoxModel<C, D> {
                 // check if the current value in the model is the target one
                 // and if the index is in the provided boundaries
                 // (we access it as a copy to avoid generating chunks needlessly)
-                if target == self[index] && is_in_boxes(&index, boundaries) {
+                if target == self[index] && boundaries.contains(&index) {
                     // replace the value in the model and
                     // add the neighbors to the queue
                     self[index] = new_value;

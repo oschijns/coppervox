@@ -20,12 +20,13 @@ pub mod magica_voxel {
     use super::OriginConfig;
     use crate::model::VoxModel;
     use dot_vox::{Model, Size, Voxel};
+    use num::traits::ConstZero;
 
     /// Conversion of Magica Voxel into ndarray::Array3
-    pub fn convert<C: Default + Copy + From<u8>, const D: usize>(
-        model: &Model,
-        origin_config: &[OriginConfig; 3],
-    ) -> VoxModel<C, D> {
+    pub fn convert<C>(model: &Model, origin_config: &[OriginConfig; 3]) -> VoxModel<C>
+    where
+        C: Default + Copy + From<u8> + ConstZero,
+    {
         let Size { x, y, z } = model.size;
 
         // convert the size read into an offset for storing voxels
@@ -43,7 +44,7 @@ pub mod magica_voxel {
         let offset_z = set_offset!(z 1);
 
         // reorder the coordinates as Magica Voxel uses Z as the up coordinate
-        let mut voxel_model = VoxModel::<C, D>::default();
+        let mut voxel_model = VoxModel::<C>::default();
 
         model.voxels.iter().for_each(|&voxel| {
             let Voxel { x, y, z, .. } = voxel;
@@ -52,7 +53,7 @@ pub mod magica_voxel {
                 z as isize - offset_z,
                 y as isize - offset_y,
             ];
-            voxel_model[index] = C::from(voxel.i + 1u8);
+            voxel_model.0[index] = C::from(voxel.i + 1u8);
         });
 
         voxel_model
@@ -61,20 +62,17 @@ pub mod magica_voxel {
 
 /// Conversion of 2D image
 pub mod image_2d {
+    use super::OriginConfig;
     use crate::model::VoxModel;
     use image::GenericImageView;
-
-    use super::OriginConfig;
+    use num::traits::ConstZero;
 
     /// Conversion of Generic 2D image into ndarray::Array2
-    pub fn convert<
-        C: Default + Copy + From<<I as GenericImageView>::Pixel>,
-        const D: usize,
+    pub fn convert<C, I>(image: &I, origin_config: &[OriginConfig; 2]) -> VoxModel<C>
+    where
+        C: Default + Copy + ConstZero + From<<I as GenericImageView>::Pixel>,
         I: GenericImageView,
-    >(
-        image: &I,
-        origin_config: &[OriginConfig; 2],
-    ) -> VoxModel<C, D> {
+    {
         let (sx, sy) = image.dimensions();
 
         // convert the size read into an offset for storing voxels
@@ -91,12 +89,12 @@ pub mod image_2d {
         let offset_y = set_offset!(sy 1);
 
         // load the image in a top-down view
-        let mut voxel_model = VoxModel::<C, D>::default();
+        let mut voxel_model = VoxModel::<C>::default();
 
         // iterate over the image and store the pixels into the matrix
         image.pixels().for_each(|(x, y, pixel)| {
             let index = [x as isize - offset_x, 0isize, y as isize - offset_y];
-            voxel_model[index] = C::from(pixel);
+            voxel_model.0[index] = C::from(pixel);
         });
 
         voxel_model

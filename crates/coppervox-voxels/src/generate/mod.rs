@@ -13,7 +13,7 @@ pub mod mesh;
 /// Identify a pattern from a blob of voxels
 pub mod pattern;
 
-use super::{array3, model::VoxModel, Cell};
+use super::{Cell, array3, model::VoxModel};
 use bevy::{
     asset::{Assets, Handle},
     ecs::system::EntityCommands,
@@ -25,9 +25,9 @@ use labeling::{Label, LabeledModel};
 use mesh::{BlockMeshMatrix, BoolVoxel};
 use pattern::PatternId;
 use petgraph::{
+    Undirected,
     csr::{Csr, NodeIndex},
     visit::{EdgeRef, IntoEdgeReferences, IntoNodeReferences},
-    Undirected,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -64,7 +64,7 @@ impl<T: Copy + Hash + Eq, W: Clone + From<usize>> CircuitData<T, W> {
         const D: usize,
     >(
         mut meshes: ResMut<Assets<Mesh>>,
-        model: &VoxModel<V, D>,
+        model: &VoxModel<V>,
         converter: &C,
         threshold: usize,
     ) -> Self {
@@ -97,7 +97,7 @@ impl<T: Copy + Hash + Eq, W: Clone + From<usize>> CircuitData<T, W> {
         let mut circuit = Csr::<CircuitElement<T, W>, bool, Undirected>::new();
         let mut node_map = HashMap::<Label, NodeIndex>::with_capacity(labeled.islands.len());
         for (&label, island) in &labeled.islands {
-            let pos = island.bounding_box[0];
+            let pos = island.bounding_box.start;
             let index = circuit.add_node(CircuitElement {
                 element_type: converter.convert(&island.value),
                 voxel_count: island.count,
@@ -168,6 +168,10 @@ pub trait Converter<V, T, W> {
     /// Take a voxel value as input and return the corresponding element
     fn convert(&self, voxel: &V) -> ElementType<T, W>;
 }
+
+// TODO : drop distinction between components and wires
+// they are the same thing now
+// simply use usize to identify elements
 
 /// The types of elements that are part of a circuit
 pub enum ElementType<T, W> {
