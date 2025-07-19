@@ -23,6 +23,7 @@ use bevy::{
 use connectivity::connectivity;
 use labeling::{Label, LabeledModel};
 use mesh::{BlockMeshMatrix, BoolVoxel};
+use num::traits::ConstZero;
 use pattern::PatternId;
 use petgraph::{
     Undirected,
@@ -60,7 +61,7 @@ impl<T: Copy + Hash + Eq, W: Clone + From<usize>> CircuitData<T, W> {
     /// that can be used to generate bevy entities.
     pub fn generate<
         C: Converter<V, T, W>,
-        V: Cell + Default + Copy + Into<T> + Hash + Eq,
+        V: Cell + Default + Copy + Into<T> + Hash + Eq + ConstZero,
         const D: usize,
     >(
         mut meshes: ResMut<Assets<Mesh>>,

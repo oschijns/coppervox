@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use gridmap::transform::Transform;
 use nalgebra::{Vector4, matrix};
 use num::integer::mod_floor;
@@ -5,7 +7,22 @@ use num::integer::mod_floor;
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Matrix(pub nalgebra::Matrix4<isize>);
 
+/// Implement matrix multiplication
+impl Mul for Matrix {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0 * rhs.0)
+    }
+}
+
 impl Matrix {
+    /// Build an identity matrix
+    #[inline]
+    pub fn identity() -> Self {
+        Self(nalgebra::Matrix4::identity())
+    }
+
     /// Build a transformation matrix describing a translation
     pub fn translation(vec: [isize; 3]) -> Self {
         Self(matrix![

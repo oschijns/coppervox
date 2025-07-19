@@ -217,7 +217,7 @@ fn identify_patterns<V>(
     // explore the matrix and identify the boundaries of each island
     for (index, label) in labeled_model.0.indexed_iter() {
         if let Some(island) = islands.get_mut(label) {
-            island.grow_with(&index);
+            island.bounding_box.grow_with(&index);
         }
     }
 
@@ -229,7 +229,7 @@ fn identify_patterns<V>(
     // for each island, identify the morphological pattern of the island
     for (label, island) in islands.iter_mut() {
         // dimensions of the matrix generated
-        let dimensions = island.dimensions();
+        let dimensions = island.bounding_box.dimensions();
         let mut matrix = Array3::<bool>::from_elem(dimensions, false);
 
         // iterate over the area covered by the island
