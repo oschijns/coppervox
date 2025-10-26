@@ -27,7 +27,7 @@ layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 // Specify the number of inputs and the number of ouputs to handle.
 // Following provided buffers should match those size accordingly.
-layout(std430, bindings = 0) uniform Dimensions {
+layout(binding = 0) uniform Dimensions {
     // Number of input components
     uint nb_inputs;
     // Number of ouput components
@@ -68,30 +68,20 @@ layout(std430, binding = 4) writeonly buffer Outputs {
 };
 
 
-void main() {
-	// Global output index (one invocation per output element)
-	uint gid = gl_GlobalInvocationID.x;
+// Read the connection buffer to figure out if the input should be used
+bool use_input(uint offset, uint index) {
 
-	// If out-of-bounds, do nothing
-	if (gid >= nb_outputs) return;
+    // split the index into word and bit
+    //uint i_word = index / INT_SIZE;
+    //uint i_bit  = index % INT_SIZE;
+    uint i_word = index >> INT_BIT;
+    uint i_bit  = index & (INT_SIZE - 1);
 
-    // Compute the offset to use to access the connection matrix.
-    uint offset = gid * (nb_inputs + 1) >> INT_BIT; // divide by INT_SIZE
+    // access the word
+    uint word = connections[offset + i_word];
 
-    // Result to store in the output buffer
-    uint result;
-    switch (operations[gid]) {
-        case OP_OR  : result = op_or  (offset); break;
-        case OP_AND : result = op_and (offset); break;
-        case OP_NOR : result = op_nor (offset); break;
-        case OP_NAND: result = op_nand(offset); break;
-        case OP_ADD : result = op_add (offset); break;
-        case OP_MUL : result = op_mul (offset); break;
-        case OP_MIN : result = op_min (offset); break;
-        case OP_MAX : result = op_max (offset); break;
-        default: result = 0; break;
-    }
-    outputs[gid] = result;
+    // access the bit from the word
+    return ((word >> i_bit) & 1) != 0;
 }
 
 
@@ -191,18 +181,28 @@ uint op_max(uint offset) {
 }
 
 
-// Read the connection buffer to figure out if the input should be used
-bool use_input(uint offset, uint index) {
+void main() {
+	// Global output index (one invocation per output element)
+	uint gid = gl_GlobalInvocationID.x;
 
-    // split the index into word and bit
-    //uint i_word = index / INT_SIZE;
-    //uint i_bit  = index % INT_SIZE;
-    uint i_word = index >> INT_BIT;
-    uint i_bit  = index & (INT_SIZE - 1);
+	// If out-of-bounds, do nothing
+	if (gid >= nb_outputs) return;
 
-    // access the word
-    uint word = connections[offset + i_word];
+    // Compute the offset to use to access the connection matrix.
+    uint offset = gid * (nb_inputs + 1) >> INT_BIT; // divide by INT_SIZE
 
-    // access the bit from the word
-    return ((word >> i_bit) & 1) != 0;
+    // Result to store in the output buffer
+    uint result;
+    switch (operations[gid]) {
+        case OP_OR  : result = op_or  (offset); break;
+        case OP_AND : result = op_and (offset); break;
+        case OP_NOR : result = op_nor (offset); break;
+        case OP_NAND: result = op_nand(offset); break;
+        case OP_ADD : result = op_add (offset); break;
+        case OP_MUL : result = op_mul (offset); break;
+        case OP_MIN : result = op_min (offset); break;
+        case OP_MAX : result = op_max (offset); break;
+        default: result = 0; break;
+    }
+    outputs[gid] = result;
 }
