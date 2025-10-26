@@ -8,7 +8,6 @@
 // Specify the size of integers used in this shader
 const uint INT_SIZE = 32;
 const uint INT_BIT  =  5; // 2^5 = 32
-const uint INT_MASK = INT_SIZE - 1;
 
 // List of operations supported
 const uint OP_OR   = 0;
@@ -22,12 +21,12 @@ const uint OP_MAX  = 7;
 
 
 // Use 256 local invocations per workgroup
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
 
 
 // Specify the number of inputs and the number of ouputs to handle.
 // Following provided buffers should match those size accordingly.
-layout(binding = 0) uniform Dimensions {
+layout(binding = 0) uniform Sizes {
     // Number of input components
     uint nb_inputs;
     // Number of ouput components
@@ -69,19 +68,20 @@ layout(std430, binding = 4) writeonly buffer Outputs {
 
 
 // Read the connection buffer to figure out if the input should be used
-bool use_input(uint offset, uint index) {
-
-    // split the index into word and bit
-    //uint i_word = index / INT_SIZE;
-    //uint i_bit  = index % INT_SIZE;
-    uint i_word = index >> INT_BIT;
-    uint i_bit  = index & (INT_SIZE - 1);
-
-    // access the word
-    uint word = connections[offset + i_word];
-
-    // access the bit from the word
-    return ((word >> i_bit) & 1) != 0;
+bool use_input(uint output_idx, uint input_idx) {
+    // For a 4x4 matrix, bits are packed as:
+    // Word 0: [out0_in0 out0_in1 out0_in2 out0_in3] [out1_in0 out1_in1 out1_in2 out1_in3] ...
+    
+    // Calculate bit position: output_idx * nb_inputs + input_idx
+    uint bit_pos = output_idx * nb_inputs + input_idx;
+    
+    // Calculate which word and bit within that word
+    uint word_idx = bit_pos >> INT_BIT;        // Divide by 32
+    uint bit_idx = bit_pos & (INT_SIZE - 1);   // Modulo 32
+    
+    // Get the word and check the bit
+    uint word = connections[word_idx];
+    return ((word >> bit_idx) & 1u) != 0u;
 }
 
 
@@ -106,30 +106,6 @@ uint op_and(uint offset) {
         }
     }
     return result;
-}
-
-
-// Process NOR operation
-uint op_nor(uint offset) {
-    uint result = 0;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
-            result |= inputs[i];
-        }
-    }
-    return ~result;
-}
-
-
-// Process NAND operation
-uint op_nand(uint offset) {
-    uint result = 0;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
-            result &= inputs[i];
-        }
-    }
-    return ~result;
 }
 
 
@@ -194,14 +170,14 @@ void main() {
     // Result to store in the output buffer
     uint result;
     switch (operations[gid]) {
-        case OP_OR  : result = op_or  (offset); break;
-        case OP_AND : result = op_and (offset); break;
-        case OP_NOR : result = op_nor (offset); break;
-        case OP_NAND: result = op_nand(offset); break;
-        case OP_ADD : result = op_add (offset); break;
-        case OP_MUL : result = op_mul (offset); break;
-        case OP_MIN : result = op_min (offset); break;
-        case OP_MAX : result = op_max (offset); break;
+        case OP_OR  : result =  op_or (offset); break;
+        case OP_AND : result =  op_and(offset); break;
+        case OP_NOR : result = ~op_or (offset); break;
+        case OP_NAND: result = ~op_and(offset); break;
+        case OP_ADD : result =  op_add(offset); break;
+        case OP_MUL : result =  op_mul(offset); break;
+        case OP_MIN : result =  op_min(offset); break;
+        case OP_MAX : result =  op_max(offset); break;
         default: result = 0; break;
     }
     outputs[gid] = result;
