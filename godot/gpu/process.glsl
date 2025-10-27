@@ -9,6 +9,8 @@
 const uint INT_SIZE = 32;
 const uint INT_BIT  =  5; // 2^5 = 32
 
+const uint FILLED = 0xffffffff;
+
 // List of operations supported
 const uint OP_OR   = 0;
 const uint OP_AND  = 1;
@@ -21,12 +23,12 @@ const uint OP_MAX  = 7;
 
 
 // Use 256 local invocations per workgroup
-layout(local_size_x = 1024, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 
 // Specify the number of inputs and the number of ouputs to handle.
 // Following provided buffers should match those size accordingly.
-layout(binding = 0) uniform Sizes {
+layout(set = 0, binding = 0, std430) restrict readonly buffer Sizes {
     // Number of input components
     uint nb_inputs;
     // Number of ouput components
@@ -35,7 +37,7 @@ layout(binding = 0) uniform Sizes {
 
 
 // Connection matrix of the components.
-layout(std430, binding = 1) restrict readonly buffer Connections {
+layout(set = 0, binding = 1, std430) restrict readonly buffer Connections {
     // Store a single bit for each input-output connections.
     // This buffer should be `(nb_outputs * nb_inputs + 1) / 32`.
     // Accessing this buffer should be equivalent to [out][in] for optimization purposes.
@@ -44,7 +46,7 @@ layout(std430, binding = 1) restrict readonly buffer Connections {
 
 
 // Specify the types of the output components indicating which operation to execute.
-layout(std430, binding = 2) restrict readonly buffer Operations {
+layout(set = 0, binding = 2, std430) restrict readonly buffer Operations {
     // Specify the operation to execute for each output.
     // This buffer should be `nb_outputs` long.
     uint operations[];
@@ -52,7 +54,7 @@ layout(std430, binding = 2) restrict readonly buffer Operations {
 
 
 // The input components
-layout(std430, binding = 3) readonly buffer Inputs {
+layout(set = 0, binding = 3, std430) readonly buffer Inputs {
     // Store a 32-bits unsigned integer for the state of the inputs.
     // This buffer should be `nb_inputs` long.
     uint inputs[];
@@ -60,7 +62,7 @@ layout(std430, binding = 3) readonly buffer Inputs {
 
 
 // The output components
-layout(std430, binding = 4) writeonly buffer Outputs {
+layout(set = 0, binding = 4, std430) writeonly buffer Outputs {
     // Store a 32-bits unsigned integer for the state of the ouputs.
     // This buffer should be `nb_outputs` long.
     uint outputs[];
@@ -99,7 +101,7 @@ uint op_or(uint offset) {
 
 // Process AND operation
 uint op_and(uint offset) {
-    uint result = 0;
+    uint result = FILLED;
     for (uint i = 0; i < nb_inputs; ++i) {
         if (use_input(offset, i)) {
             result &= inputs[i];
@@ -123,7 +125,7 @@ uint op_add(uint offset) {
 
 // Process MUL operation
 uint op_mul(uint offset) {
-    uint result = 0;
+    uint result = 1;
     for (uint i = 0; i < nb_inputs; ++i) {
         if (use_input(offset, i)) {
             result *= inputs[i];
@@ -135,7 +137,7 @@ uint op_mul(uint offset) {
 
 // Process MIN operation
 uint op_min(uint offset) {
-    uint result = 0;
+    uint result = FILLED;
     for (uint i = 0; i < nb_inputs; ++i) {
         if (use_input(offset, i)) {
             result = min(result, inputs[i]);
