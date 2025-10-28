@@ -12,3 +12,6 @@ rust/target/
 rust/debug/
 rust/**/*.rs.bk
 rust/*.pdb
+
+# Ignore target at the root
+target/

@@ -1,9 +1,6 @@
 #[compute]
 #version 460
 
-// Use inputs to compute outputs values based on connections and output type.
-// 
-
 
 // Specify the size of integers used in this shader
 const uint INT_SIZE = 32;
@@ -26,20 +23,18 @@ const uint OP_MAX  = 7;
 layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 
-// Specify the number of inputs and the number of ouputs to handle.
-// Following provided buffers should match those size accordingly.
-layout(set = 0, binding = 0, std430) restrict readonly buffer Sizes {
-    // Number of input components
-    uint nb_inputs;
-    // Number of ouput components
-    uint nb_outputs;
+// Specify the number of components to handle.
+// Following provided buffers should match this size accordingly.
+layout(set = 0, binding = 0, std430) restrict readonly buffer Size {
+    // Number of components in the simulation
+    uint size;
 };
 
 
 // Connection matrix of the components.
 layout(set = 0, binding = 1, std430) restrict readonly buffer Connections {
     // Store a single bit for each input-output connections.
-    // This buffer should be `(nb_outputs * nb_inputs + 1) / 32`.
+    // This buffer should be `(size ^ 2 + 1) / 32`.
     // Accessing this buffer should be equivalent to [out][in] for optimization purposes.
     uint connections[];
 };
@@ -48,7 +43,7 @@ layout(set = 0, binding = 1, std430) restrict readonly buffer Connections {
 // Specify the types of the output components indicating which operation to execute.
 layout(set = 0, binding = 2, std430) restrict readonly buffer Operations {
     // Specify the operation to execute for each output.
-    // This buffer should be `nb_outputs` long.
+    // This buffer should be `size` long.
     uint operations[];
 };
 
@@ -56,7 +51,7 @@ layout(set = 0, binding = 2, std430) restrict readonly buffer Operations {
 // The input components
 layout(set = 0, binding = 3, std430) readonly buffer Inputs {
     // Store a 32-bits unsigned integer for the state of the inputs.
-    // This buffer should be `nb_inputs` long.
+    // This buffer should be `size` long.
     uint inputs[];
 };
 
@@ -64,18 +59,14 @@ layout(set = 0, binding = 3, std430) readonly buffer Inputs {
 // The output components
 layout(set = 0, binding = 4, std430) writeonly buffer Outputs {
     // Store a 32-bits unsigned integer for the state of the ouputs.
-    // This buffer should be `nb_outputs` long.
+    // This buffer should be `size` long.
     uint outputs[];
 };
 
 
 // Read the connection buffer to figure out if the input should be used
 bool use_input(uint output_idx, uint input_idx) {
-    // For a 4x4 matrix, bits are packed as:
-    // Word 0: [out0_in0 out0_in1 out0_in2 out0_in3] [out1_in0 out1_in1 out1_in2 out1_in3] ...
-    
-    // Calculate bit position: output_idx * nb_inputs + input_idx
-    uint bit_pos = output_idx * nb_inputs + input_idx;
+    uint bit_pos = output_idx * size + input_idx;
     
     // Calculate which word and bit within that word
     uint word_idx = bit_pos >> INT_BIT;        // Divide by 32
@@ -88,10 +79,10 @@ bool use_input(uint output_idx, uint input_idx) {
 
 
 // Process OR operation
-uint op_or(uint offset) {
+uint op_or(uint gid, uint offset) {
     uint result = 0;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
+    for (uint i = 0; i < size; ++i) {
+        if (i != gid && use_input(offset, i)) {
             result |= inputs[i];
         }
     }
@@ -100,10 +91,10 @@ uint op_or(uint offset) {
 
 
 // Process AND operation
-uint op_and(uint offset) {
+uint op_and(uint gid, uint offset) {
     uint result = FILLED;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
+    for (uint i = 0; i < size; ++i) {
+        if (i != gid && use_input(offset, i)) {
             result &= inputs[i];
         }
     }
@@ -112,10 +103,10 @@ uint op_and(uint offset) {
 
 
 // Process ADD operation
-uint op_add(uint offset) {
+uint op_add(uint gid, uint offset) {
     uint result = 0;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
+    for (uint i = 0; i < size; ++i) {
+        if (i != gid && use_input(offset, i)) {
             result += inputs[i];
         }
     }
@@ -124,10 +115,10 @@ uint op_add(uint offset) {
 
 
 // Process MUL operation
-uint op_mul(uint offset) {
+uint op_mul(uint gid, uint offset) {
     uint result = 1;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
+    for (uint i = 0; i < size; ++i) {
+        if (i != gid && use_input(offset, i)) {
             result *= inputs[i];
         }
     }
@@ -136,10 +127,10 @@ uint op_mul(uint offset) {
 
 
 // Process MIN operation
-uint op_min(uint offset) {
+uint op_min(uint gid, uint offset) {
     uint result = FILLED;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
+    for (uint i = 0; i < size; ++i) {
+        if (i != gid && use_input(offset, i)) {
             result = min(result, inputs[i]);
         }
     }
@@ -148,10 +139,10 @@ uint op_min(uint offset) {
 
 
 // Process MAX operation
-uint op_max(uint offset) {
+uint op_max(uint gid, uint offset) {
     uint result = 0;
-    for (uint i = 0; i < nb_inputs; ++i) {
-        if (use_input(offset, i)) {
+    for (uint i = 0; i < size; ++i) {
+        if (i != gid && use_input(offset, i)) {
             result = max(result, inputs[i]);
         }
     }
@@ -164,22 +155,22 @@ void main() {
 	uint gid = gl_GlobalInvocationID.x;
 
 	// If out-of-bounds, do nothing
-	if (gid >= nb_outputs) return;
+	if (gid >= size) return;
 
     // Compute the offset to use to access the connection matrix.
-    uint offset = gid * (nb_inputs + 1) >> INT_BIT; // divide by INT_SIZE
+    uint offset = gid * (size + 1) >> INT_BIT; // divide by INT_SIZE
 
     // Result to store in the output buffer
     uint result;
     switch (operations[gid]) {
-        case OP_OR  : result =  op_or (offset); break;
-        case OP_AND : result =  op_and(offset); break;
-        case OP_NOR : result = ~op_or (offset); break;
-        case OP_NAND: result = ~op_and(offset); break;
-        case OP_ADD : result =  op_add(offset); break;
-        case OP_MUL : result =  op_mul(offset); break;
-        case OP_MIN : result =  op_min(offset); break;
-        case OP_MAX : result =  op_max(offset); break;
+        case OP_OR  : result =  op_or (gid, offset); break;
+        case OP_AND : result =  op_and(gid, offset); break;
+        case OP_NOR : result = ~op_or (gid, offset); break;
+        case OP_NAND: result = ~op_and(gid, offset); break;
+        case OP_ADD : result =  op_add(gid, offset); break;
+        case OP_MUL : result =  op_mul(gid, offset); break;
+        case OP_MIN : result =  op_min(gid, offset); break;
+        case OP_MAX : result =  op_max(gid, offset); break;
         default: result = 0; break;
     }
     outputs[gid] = result;
