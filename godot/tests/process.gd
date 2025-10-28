@@ -1,7 +1,9 @@
 extends Node
 
+# workgroup sized as defined in the compute shader
 const WORKGROUP := 256
 
+# Operations as defined in the compute shader
 enum Op {
 	OR   = 0,
 	AND  = 1,
@@ -46,6 +48,12 @@ var _uniform_b_out : RDUniform = null
 # Flag for storage buffers used in read-write operations
 const RW_BUFFER := RenderingDevice.BUFFER_CREATION_AS_STORAGE_BIT
 
+# Flag for output texture
+const TEXTURE_BUFFER := (0
+	| RenderingDevice.TEXTURE_USAGE_SAMPLING_BIT
+	| RenderingDevice.TEXTURE_USAGE_STORAGE_BIT
+)
+
 
 func _ready() -> void:
 
@@ -62,10 +70,11 @@ func _ready() -> void:
 	var uni_conn := create_connections(rd)
 	var uni_op   := create_operations (rd)
 	create_swap_buffers(rd)
+	var uni_tex  := create_texture_rd(rd)
 
 	# Set uniforms
-	var uniform_set_a := rd.uniform_set_create([uni_size, uni_conn, uni_op, _uniform_a_in, _uniform_b_out], shader, 0)
-	var uniform_set_b := rd.uniform_set_create([uni_size, uni_conn, uni_op, _uniform_b_in, _uniform_a_out], shader, 0)
+	var uniform_set_a := rd.uniform_set_create([uni_size, uni_conn, uni_op, _uniform_a_in, _uniform_b_out, uni_tex], shader, 0)
+	var uniform_set_b := rd.uniform_set_create([uni_size, uni_conn, uni_op, _uniform_b_in, _uniform_a_out, uni_tex], shader, 0)
 
 	run_compute(rd, uniform_set_a, _buffer_b)
 	run_compute(rd, uniform_set_b, _buffer_a)
@@ -155,3 +164,23 @@ func create_swap_buffers(rd: RenderingDevice) -> void:
 	_uniform_b_out.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
 	_uniform_b_out.binding = 4
 	_uniform_b_out.add_id(_buffer_b)
+
+
+func create_texture_rd(rd: RenderingDevice) -> RDUniform:
+	var fmt := RDTextureFormat.new()
+	fmt.width        = inputs.size();
+	fmt.height       = 1
+	fmt.depth        = 1
+	fmt.format       = RenderingDevice.DATA_FORMAT_R32_UINT
+	fmt.samples      = RenderingDevice.TEXTURE_SAMPLES_1
+	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_1D
+	fmt.usage_bits   = TEXTURE_BUFFER
+	var view := RDTextureView.new()
+	var texture := rd.texture_create(fmt, view)
+
+	var uniform := RDUniform.new()
+	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
+	uniform.binding = 5
+	uniform.add_id(texture)
+
+	return uniform

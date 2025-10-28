@@ -64,6 +64,10 @@ layout(set = 0, binding = 4, std430) writeonly buffer Outputs {
 };
 
 
+// The output image to write to
+layout(set = 0, binding = 5, r32ui) writeonly uniform uimage1D write_output;
+
+
 // Read the connection buffer to figure out if the input should be used
 bool use_input(uint output_idx, uint input_idx) {
     uint bit_pos = output_idx * size + input_idx;
@@ -174,4 +178,5 @@ void main() {
         default: result = 0; break;
     }
     outputs[gid] = result;
+    imageStore(write_output, int(gid), uvec4(result));
 }
