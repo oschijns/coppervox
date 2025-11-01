@@ -80,22 +80,20 @@ impl QuadsReader<Gd<ArrayMesh>> for Mesher {
                 // store the positions of the quads
                 self.positions.extend_from_slice(
                     face.quad_mesh_positions(quad, 1.0)
-                        .map(|v| Vector3::from_array(v))
+                        .map(Vector3::from_array)
                         .as_slice(),
                 );
 
                 // store the normals of the quads
                 self.normals.extend_from_slice(
-                    face.quad_mesh_normals()
-                        .map(|v| Vector3::from_array(v))
-                        .as_slice(),
+                    face.quad_mesh_normals().map(Vector3::from_array).as_slice(),
                 );
 
                 if self.use_uvs {
                     // store the UV coordinates of the quads
                     self.uvs.extend_from_slice(
                         face.tex_coords(config.u_flip_face, self.uv_flip_v, quad)
-                            .map(|v| Vector2::from_array(v))
+                            .map(Vector2::from_array)
                             .as_slice(),
                     );
                 }

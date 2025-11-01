@@ -18,11 +18,14 @@ mod shaping;
 /// Convert the shapes into meshes
 mod meshing;
 
-use crate::{Model, Voxel};
+/// Identify connections between the islands
+mod connecting;
+
+use crate::Voxel;
 use bitvec::{order::Msb0, vec::BitVec};
 use block_mesh::{QuadBuffer, QuadCoordinateConfig};
 use gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
-use ndshape::RuntimeShape;
+use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 /// Type used for labeling islands
 type Label = u32;
@@ -69,4 +72,13 @@ struct ShapeData {
 /// appropriate data structure for your target engine.
 pub trait QuadsReader<M> {
     fn read_quads(&mut self, quads: &QuadBuffer, config: &QuadCoordinateConfig) -> M;
+}
+
+/// Define connectivity between islands
+struct Connectivity {
+    /// Incidence matrix indicating connections between islands
+    graph: DiMatrix<Label, usize>,
+
+    /// Mapping between labels and their corresponding node index
+    mapping: HashMap<Label, NodeIndex>,
 }
