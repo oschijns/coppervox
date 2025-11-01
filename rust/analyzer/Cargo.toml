@@ -1,0 +1,28 @@
+[package]
+name = "coppervox_analyzer"
+description = "CopperVox analyzer library"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+# Define a model made of voxels
+gridmap = { git = "https://github.com/oschijns/gridmap.git", branch = "dev" }
+
+
+# Regroup labels to identify islands
+disjoint-hash-set = "1"
+
+# Morphology of a component
+bitvec = "1"
+
+# Generate mesh from voxel model
+block-mesh = "0.2"
+ndshape = "0.3"
+itertools = "0.14"
+
+# Directed graph
+petgraph = "0.8"
