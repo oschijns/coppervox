@@ -5,8 +5,8 @@
 /// Binds with Godot to run the logic circuit using a compute shader
 mod runner;
 
-/// Read quads data to generate a mesh usable by Godot
-mod quads_reader;
+/// Analyze the voxel model and generate a logical representation that can be run by Godot
+mod builder;
 
 use godot::prelude::*;
 

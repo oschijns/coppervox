@@ -144,10 +144,7 @@ impl LabeledModel {
             // get any element of the group to find the initial voxel
             if let Some(label) = group.iter().next() {
                 // allocate an island data and store the voxel associated with the label
-                islands.insert(
-                    current_label,
-                    IslandInfo::new(current_label, association[label]),
-                );
+                islands.insert(current_label, IslandInfo::new(association[label]));
             }
 
             // create a new label for the next potential group
@@ -169,9 +166,8 @@ impl LabeledModel {
 impl IslandInfo {
     /// Generate a new island with the given voxel,
     /// a null hash pattern and an invalid bounding box.
-    fn new(label: Label, voxel_value: Voxel) -> Self {
+    fn new(voxel_value: Voxel) -> Self {
         Self {
-            label,
             voxel_value,
             bounding_box: BoundingBox {
                 // set beginning point to max coordinates

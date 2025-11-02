@@ -3,10 +3,10 @@
 //!
 
 /// Analyze the voxel data to deduce components and connections between them
-pub mod analyzer;
+mod analyzer;
 
 /// Import various file format to generate a model made of voxels
-pub mod importer;
+mod importer;
 
 use gridmap::GridMap;
 
@@ -19,3 +19,6 @@ pub type Model = GridMap<Voxel, 3>;
 // re-export crates
 pub use block_mesh;
 pub use gridmap;
+
+// re-export types
+pub use analyzer::{Analysis, Connectivity, Error, Info, Label, QuadsReader};

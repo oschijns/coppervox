@@ -9,3 +9,6 @@ repository = "https://github.com/oschijns/coppervox"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+
+[workspace.dependencies]
+thiserror = "2.0"

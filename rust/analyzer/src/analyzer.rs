@@ -9,6 +9,9 @@
 //! built, we can proceed to build the storage buffers for the compute shader
 //! and instantiate the meshes in Godot's RenderServer.
 
+///
+mod base;
+
 /// Label the initial model into islands
 mod labeling;
 
@@ -21,6 +24,9 @@ mod meshing;
 /// Identify connections between the islands
 mod connecting;
 
+/// Iterator for reading results
+pub mod iterator;
+
 use crate::Voxel;
 use bitvec::{order::Msb0, vec::BitVec};
 use block_mesh::{QuadBuffer, QuadCoordinateConfig};
@@ -28,12 +34,13 @@ use gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 /// Type used for labeling islands
-type Label = u32;
+pub type Label = u32;
 
-type ShapeHash = u64;
+/// Type used to identify a shape
+pub type ShapeHash = u64;
 
 /// Labeled voxel model
-struct LabeledModel {
+pub struct LabeledModel {
     /// The labeled model
     labeled_model: GridMap<Label, 3>,
 
@@ -43,9 +50,6 @@ struct LabeledModel {
 
 /// Define an Island data
 struct IslandInfo {
-    /// Label of the island
-    label: Label,
-
     /// Initial value of the voxels in the island
     voxel_value: Voxel,
 
@@ -60,7 +64,7 @@ struct IslandInfo {
 }
 
 /// Matrix used by the block_mesh crate to generate the meshes
-struct ShapeData {
+pub struct ShapeData {
     /// The cells composing this matrix where each cell is encoded over a single bit
     bitmatrix: BitVec<u64, Msb0>,
 
@@ -75,10 +79,51 @@ pub trait QuadsReader<M> {
 }
 
 /// Define connectivity between islands
-struct Connectivity {
+pub struct Connectivity {
     /// Incidence matrix indicating connections between islands
     graph: DiMatrix<Label, usize>,
 
     /// Mapping between labels and their corresponding node index
     mapping: HashMap<Label, NodeIndex>,
+}
+
+/// Store data about the voxel model that have been analyzed
+pub struct Analysis<M> {
+    /// The labeled model
+    labeled_model: LabeledModel,
+
+    /// Meshes generated for displaying the components
+    meshes: HashMap<ShapeHash, M>,
+
+    /// Define the connections between the components
+    connectivity: Connectivity,
+}
+
+/// Information on an island
+#[derive(Clone)]
+pub struct Info<M> {
+    /// The voxel value of the island
+    pub voxel_value: Voxel,
+
+    /// The number of voxels in the island
+    pub voxels_count: usize,
+
+    /// The mesh generated for the island
+    pub mesh: M,
+
+    /// The identifier of the node in the incidence matrix
+    pub node_index: NodeIndex,
+}
+
+/// Error reporting when accessing information
+#[derive(thiserror::Error, Debug, Clone, Copy)]
+pub enum Error {
+    #[error("No island exists for the label")]
+    NoInfo,
+
+    #[error("No mesh was generated for the label")]
+    NoMesh,
+
+    #[error("No connectivity was evaluated for the label")]
+    NotConnected,
 }
