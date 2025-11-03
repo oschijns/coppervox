@@ -6,8 +6,8 @@ use godot::prelude::*;
 /// Operations defined in the compute shader
 #[repr(C)]
 #[derive(GodotConvert, Var, Export, Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[godot(via = GString)]
-pub enum CvOp {
+#[godot(via = u32)]
+pub enum Operation {
     /// bitwise OR operation
     Or = 0,
 

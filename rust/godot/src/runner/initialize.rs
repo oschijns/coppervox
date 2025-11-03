@@ -1,4 +1,4 @@
-use super::{Buffer, CvRunner, WorkBuffer};
+use super::{Buffer, Runner, WorkBuffer, config::*};
 use godot::{
     classes::{
         RdUniform, RenderingDevice,
@@ -7,13 +7,30 @@ use godot::{
     prelude::*,
 };
 
-// binding points for the buffers in the compute shader
-pub const BIND_SIZE: i32 = 0;
-pub const BIND_CONNECTIONS: i32 = 1;
-pub const BIND_OPERATIONS: i32 = 2;
-pub const BIND_INPUTS: i32 = 3;
-pub const BIND_OUTPUTS: i32 = 4;
-pub const BIND_TEXTURE: i32 = 5;
+impl Runner {
+    /// Build a runner from a set of buffer
+    pub fn build(&mut self, count: u32, connections: &[i32], operations: &[i32]) -> Result<(), ()> {
+        // compute the number of dispatches necessary
+        self.dispatches_count = count.div_ceil(WORKGROUP_SIZE);
+
+        // prepare the storage buffers
+        if let Some(render) = self.render_device.clone() {
+            self.buffer_size
+                .build(render.clone(), &[count as i32], BIND_SIZE);
+            self.buffer_connections
+                .build(render.clone(), connections, BIND_CONNECTIONS);
+            self.buffer_operations
+                .build(render.clone(), operations, BIND_OPERATIONS);
+
+            // prepare the two work buffers
+            let [buffer_a, buffer_b] = &mut self.work_buffers;
+            WorkBuffer::build(buffer_a, buffer_b, render, count);
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+}
 
 /// Allocate memory
 impl Default for Buffer {
@@ -49,7 +66,7 @@ impl Default for WorkBuffer {
 
 impl Buffer {
     /// Create the buffer with the provided data
-    pub fn create(&mut self, render: &mut RenderingDevice, integers: &[i32], binding: i32) {
+    fn build(&mut self, mut render: Gd<RenderingDevice>, integers: &[i32], binding: i32) {
         // Create a storage buffer given the provided data
         let bytes = PackedInt32Array::from(integers).to_byte_array();
         self.handle = render
@@ -59,18 +76,24 @@ impl Buffer {
         self.uniform.add_id(self.handle);
         self.uniform.set_binding(binding);
     }
+
+    /// Delete the storage buffer associated
+    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
+        render.free_rid(self.handle);
+        self.handle = Rid::Invalid;
+    }
 }
 
-impl CvRunner {
+impl WorkBuffer {
     /// Create the work buffers
-    pub fn create_work_buffers(&mut self, render: &mut RenderingDevice, count: usize) {
-        self.count = count;
-
-        // unwrap the buffers
-        let [buf_a, buf_b] = &mut self.work_buffers;
-
+    fn build(
+        buffer_a: &mut Self,
+        buffer_b: &mut Self,
+        mut render: Gd<RenderingDevice>,
+        count: u32,
+    ) {
         // Create a storage buffer with the given size
-        let size = (count * size_of::<i32>()) as u32;
+        let size = count * size_of::<i32>() as u32;
         macro_rules! make {
             () => {
                 render
@@ -79,8 +102,8 @@ impl CvRunner {
                     .done()
             };
         }
-        buf_a.handle = make!();
-        buf_b.handle = make!();
+        buffer_a.handle = make!();
+        buffer_b.handle = make!();
 
         // link the two buffers as input and output
         macro_rules! set {
@@ -89,7 +112,15 @@ impl CvRunner {
                 $buf_out.uniform_output.add_id($buf_out.handle);
             };
         }
-        set! { buf_a -> buf_b }
-        set! { buf_b -> buf_a }
+        set! { buffer_a -> buffer_b }
+        set! { buffer_b -> buffer_a }
+    }
+
+    /// Delete the storage buffers associated
+    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
+        render.free_rid(self.handle);
+        render.free_rid(self.uniforms_list);
+        self.handle = Rid::Invalid;
+        self.uniforms_list = Rid::Invalid;
     }
 }
