@@ -8,7 +8,7 @@ mod initialize;
 mod process;
 
 use godot::{
-    classes::{RdShaderFile, RdUniform, RenderingDevice, RenderingServer},
+    classes::{RdShaderFile, RdTextureView, RdUniform, RenderingDevice, RenderingServer},
     prelude::*,
 };
 use std::str::FromStr;
@@ -22,6 +22,9 @@ pub struct Runner {
     /// Path to the compute shader to load
     #[export]
     shaper_path: GString,
+
+    /// Handle to shader compiled
+    shader: Rid,
 
     /// The rendering device this runner uses
     render_device: Option<Gd<RenderingDevice>>,
@@ -44,6 +47,9 @@ pub struct Runner {
     /// Storage buffer for the type of operations
     buffer_operations: Buffer,
 
+    /// Sampler used to pass data from the compute shader to the rendering shader
+    sampler_buffer: SamplerBuffer,
+
     /// IO work buffers to swap every tick
     work_buffers: [WorkBuffer; 2],
 
@@ -56,7 +62,7 @@ struct Buffer {
     /// handle to the storage buffer
     handle: Rid,
 
-    /// keep track of the uniform built
+    /// uniform associated
     uniform: Gd<RdUniform>,
 }
 
@@ -65,14 +71,26 @@ struct WorkBuffer {
     /// Handle to the storage buffer
     handle: Rid,
 
-    /// keep track of the uniform built as an input
+    /// uniform used as an input
     uniform_input: Gd<RdUniform>,
 
-    /// keep track of the uniform built as an output
+    /// uniform used as an output
     uniform_output: Gd<RdUniform>,
 
     /// Uniforms list for using the storage buffer as an output
-    uniforms_list: Rid,
+    uniform_set: Rid,
+}
+
+/// Texture buffer shared between the compute shader and the visual shader
+struct SamplerBuffer {
+    /// Handle to the texture buffer
+    handle: Rid,
+
+    /// uniform used by the compute shader
+    uniform: Gd<RdUniform>,
+
+    /// view over the texture build
+    view: Gd<RdTextureView>,
 }
 
 #[godot_api]
@@ -81,6 +99,7 @@ impl INode for Runner {
         Self {
             base,
             shaper_path: GString::from_str("res://process.glsl").unwrap(),
+            shader: Rid::Invalid,
             render_device: None,
             pipeline: Rid::Invalid,
             dispatches_count: 0,
@@ -88,6 +107,7 @@ impl INode for Runner {
             buffer_size: Default::default(),
             buffer_connections: Default::default(),
             buffer_operations: Default::default(),
+            sampler_buffer: Default::default(),
             work_buffers: Default::default(),
             flip_flop: false,
         }
@@ -97,11 +117,17 @@ impl INode for Runner {
         self.render_device = RenderingServer::singleton().create_local_rendering_device();
         if let Some(mut render) = self.render_device.clone() {
             let shader = load::<RdShaderFile>(&self.shaper_path);
-            let shader = render.shader_create_from_spirv(shader.get_spirv().as_ref());
-            self.pipeline = render.compute_pipeline_create(shader);
+            self.shader = render.shader_create_from_spirv(shader.get_spirv().as_ref());
+            self.pipeline = render.compute_pipeline_create(self.shader);
         }
     }
 }
 
 #[godot_api]
-impl Runner {}
+impl Runner {
+    /// To be called at a fixed tick rate
+    #[func]
+    fn on_tick(&mut self) {
+        self.tick();
+    }
+}

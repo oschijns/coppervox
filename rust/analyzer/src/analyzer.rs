@@ -9,7 +9,7 @@
 //! built, we can proceed to build the storage buffers for the compute shader
 //! and instantiate the meshes in Godot's RenderServer.
 
-///
+/// Basic operations
 mod base;
 
 /// Label the initial model into islands

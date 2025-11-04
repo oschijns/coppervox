@@ -16,5 +16,5 @@ pub const BIND_INPUTS: i32 = 3;
 /// Binding point for the outputs
 pub const BIND_OUTPUTS: i32 = 4;
 
-/// Binding point for the output texture
-pub const BIND_TEXTURE: i32 = 5;
+/// Binding point for the output sampler
+pub const BIND_SAMPLER: i32 = 5;

@@ -1,8 +1,11 @@
-use super::{Buffer, Runner, WorkBuffer, config::*};
+use super::{Buffer, Runner, SamplerBuffer, WorkBuffer, config::*};
 use godot::{
     classes::{
-        RdUniform, RenderingDevice,
-        rendering_device::{BufferCreationBits, UniformType},
+        RdTextureFormat, RdTextureView, RdUniform, RenderingDevice,
+        rendering_device::{
+            BufferCreationBits, DataFormat, TextureSamples, TextureType, TextureUsageBits,
+            UniformType,
+        },
     },
     prelude::*,
 };
@@ -21,14 +24,40 @@ impl Runner {
                 .build(render.clone(), connections, BIND_CONNECTIONS);
             self.buffer_operations
                 .build(render.clone(), operations, BIND_OPERATIONS);
+            self.sampler_buffer.build(render.clone(), count);
 
             // prepare the two work buffers
             let [buffer_a, buffer_b] = &mut self.work_buffers;
-            WorkBuffer::build(buffer_a, buffer_b, render, count);
+            WorkBuffer::build(buffer_a, buffer_b, render.clone(), count);
+
+            // Define two uniform set for swapping between the two work buffers
+            buffer_a.build_uniform_set(
+                render.clone(),
+                &self.buffer_size,
+                &self.buffer_connections,
+                &self.buffer_operations,
+                &self.sampler_buffer,
+                self.shader,
+            );
+            buffer_b.build_uniform_set(
+                render.clone(),
+                &self.buffer_size,
+                &self.buffer_connections,
+                &self.buffer_operations,
+                &self.sampler_buffer,
+                self.shader,
+            );
+
             Ok(())
         } else {
             Err(())
         }
+    }
+
+    /// Access the texture handle
+    #[inline]
+    pub fn get_texture_handle(&self) -> Rid {
+        self.sampler_buffer.handle
     }
 }
 
@@ -42,6 +71,26 @@ impl Default for Buffer {
             handle: Rid::Invalid,
             uniform,
         }
+    }
+}
+
+impl Buffer {
+    /// Create the buffer with the provided data
+    fn build(&mut self, mut render: Gd<RenderingDevice>, integers: &[i32], binding: i32) {
+        // Create a storage buffer given the provided data
+        let bytes = PackedInt32Array::from(integers).to_byte_array();
+        self.handle = render
+            .storage_buffer_create_ex(bytes.len() as u32)
+            .data(&bytes)
+            .done();
+        self.uniform.set_binding(binding);
+        self.uniform.add_id(self.handle);
+    }
+
+    /// Delete the storage buffer associated
+    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
+        render.free_rid(self.handle);
+        self.handle = Rid::Invalid;
     }
 }
 
@@ -59,28 +108,8 @@ impl Default for WorkBuffer {
             handle: Rid::Invalid,
             uniform_input,
             uniform_output,
-            uniforms_list: Rid::Invalid,
+            uniform_set: Rid::Invalid,
         }
-    }
-}
-
-impl Buffer {
-    /// Create the buffer with the provided data
-    fn build(&mut self, mut render: Gd<RenderingDevice>, integers: &[i32], binding: i32) {
-        // Create a storage buffer given the provided data
-        let bytes = PackedInt32Array::from(integers).to_byte_array();
-        self.handle = render
-            .storage_buffer_create_ex(bytes.len() as u32)
-            .data(&bytes)
-            .done();
-        self.uniform.add_id(self.handle);
-        self.uniform.set_binding(binding);
-    }
-
-    /// Delete the storage buffer associated
-    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
-        render.free_rid(self.handle);
-        self.handle = Rid::Invalid;
     }
 }
 
@@ -116,11 +145,73 @@ impl WorkBuffer {
         set! { buffer_b -> buffer_a }
     }
 
+    /// Create uniform set
+    fn build_uniform_set(
+        &mut self,
+        mut render: Gd<RenderingDevice>,
+        buffer_size: &Buffer,
+        buffer_connections: &Buffer,
+        buffer_operations: &Buffer,
+        sampler_buffer: &SamplerBuffer,
+        shader: Rid,
+    ) {
+        self.uniform_set = render.uniform_set_create(
+            &array![
+                &buffer_size.uniform,
+                &buffer_connections.uniform,
+                &buffer_operations.uniform,
+                &self.uniform_input,
+                &self.uniform_output,
+                &sampler_buffer.uniform
+            ],
+            shader,
+            0,
+        );
+    }
+
     /// Delete the storage buffers associated
     fn delete(&mut self, mut render: Gd<RenderingDevice>) {
         render.free_rid(self.handle);
-        render.free_rid(self.uniforms_list);
+        render.free_rid(self.uniform_set);
         self.handle = Rid::Invalid;
-        self.uniforms_list = Rid::Invalid;
+        self.uniform_set = Rid::Invalid;
+    }
+}
+
+/// Allocate memory
+impl Default for SamplerBuffer {
+    fn default() -> Self {
+        let mut uniform = RdUniform::new_gd();
+        uniform.set_uniform_type(UniformType::IMAGE);
+        uniform.set_binding(BIND_SAMPLER);
+
+        Self {
+            handle: Rid::Invalid,
+            uniform,
+            view: RdTextureView::new_gd(),
+        }
+    }
+}
+
+impl SamplerBuffer {
+    /// Create the buffer with the appropriate size
+    fn build(&mut self, mut render: Gd<RenderingDevice>, count: u32) {
+        let mut fmt = RdTextureFormat::new_gd();
+        fmt.set_width(count);
+        fmt.set_height(1);
+        fmt.set_depth(1);
+        fmt.set_format(DataFormat::R32_UINT);
+        fmt.set_samples(TextureSamples::SAMPLES_1);
+        fmt.set_texture_type(TextureType::TYPE_1D);
+        fmt.set_usage_bits(TextureUsageBits::SAMPLING_BIT | TextureUsageBits::STORAGE_BIT);
+
+        self.handle = render.texture_create(&fmt, &self.view);
+        self.uniform.add_id(self.handle);
+    }
+
+    /// Delete the storage buffer associated
+    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
+        render.free_rid(self.handle);
+        self.handle = Rid::Invalid;
     }
 }
