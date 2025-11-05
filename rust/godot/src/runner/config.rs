@@ -1,3 +1,5 @@
+use godot::prelude::*;
+
 /// Size of a workgroup in the compute shader
 pub const WORKGROUP_SIZE: u32 = 256;
 
@@ -18,3 +20,33 @@ pub const BIND_OUTPUTS: i32 = 4;
 
 /// Binding point for the output sampler
 pub const BIND_SAMPLER: i32 = 5;
+
+/// Operations defined in the compute shader
+#[repr(C)]
+#[derive(GodotConvert, Var, Export, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[godot(via = i32)]
+pub enum CVOperation {
+    /// bitwise OR operation
+    Or = 0,
+
+    /// bitwise AND operation
+    And = 1,
+
+    /// bitwise NOR operation
+    Nor = 2,
+
+    /// bitwise NAND operation
+    Nand = 3,
+
+    /// arithmetic addition
+    Add = 4,
+
+    /// arithmetic multiplication
+    Mul = 5,
+
+    /// Minimum
+    Min = 6,
+
+    /// Maximum
+    Max = 7,
+}
