@@ -1,3 +1,5 @@
+use crate::analyzer::ShapeSet;
+
 use super::{QuadsReader, ShapeData};
 use block_mesh::{
     GreedyQuadsBuffer, MergeVoxel, QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG, Voxel,
@@ -5,6 +7,18 @@ use block_mesh::{
 };
 use itertools::iproduct;
 use ndshape::RuntimeShape;
+
+impl<M> ShapeSet<M> {
+    /// Generate meshes from the shape identified
+    pub fn build_meshes<R>(&mut self, mesher: &mut Mesher, reader: &mut R)
+    where
+        R: QuadsReader<M>,
+    {
+        for (&hash, shape) in self.shapes.iter() {
+            self.meshes.insert(hash, mesher.build_mesh(shape, reader));
+        }
+    }
+}
 
 /// Read shape's data and generate a mesh made of triangles from it
 pub struct Mesher {

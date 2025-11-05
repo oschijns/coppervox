@@ -176,7 +176,6 @@ impl IslandInfo {
                 end: [isize::MIN, isize::MIN, isize::MIN],
             },
             voxels_count: 0,
-            shape_hash: None,
         }
     }
 }

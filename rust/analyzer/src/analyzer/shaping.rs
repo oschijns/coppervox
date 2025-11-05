@@ -1,29 +1,35 @@
-use super::{LabeledModel, ShapeData, ShapeHash};
-use bitvec::{bitvec, order::Msb0};
+use crate::Label;
+
+use super::{LabeledModel, ShapeData, ShapeHash, ShapeSet};
+use bitvec::{bitvec, order::Lsb0};
 use gridmap::hashbrown::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-impl LabeledModel {
+impl<M> ShapeSet<M> {
     /// For each labeled island in the matrix, find the corresponding bounding box.
     /// Create a matrix of booleans to identify the pattern corresponding to the label.
-    pub fn identify_shapes(&mut self) -> HashMap<ShapeHash, ShapeData> {
+    pub fn identify_shapes(model: &mut LabeledModel) -> Self {
         /* FIRST PASS */
         // explore the matrix and identify the boundaries of each island
-        for (index, label) in self.labeled_model.indexed_iter() {
-            if let Some(island) = self.islands.get_mut(label) {
+        for (index, label) in model.labeled_model.indexed_iter() {
+            if let Some(island) = model.islands.get_mut(label) {
                 island.bounding_box.grow_with(&index);
             }
         }
 
         /* SECOND PASS */
+        let count = model.islands.len();
+
         // allocate a map to store unique instances of each pattern
-        let mut shapes = HashMap::<ShapeHash, ShapeData>::with_capacity(self.islands.len());
+        let mut mapping = HashMap::<Label, ShapeHash>::with_capacity(count);
+        let mut shapes = HashMap::<ShapeHash, ShapeData>::with_capacity(count);
+        let meshes = HashMap::<ShapeHash, M>::with_capacity(count);
 
         // Preallocate structure for identifying shapes to convert into meshes
-        let mut bitmatrix = bitvec![u64, Msb0; 0; 0];
+        let mut bitmatrix = bitvec![u64, Lsb0; 0; 0];
 
         // for each island, identify the morphological pattern of the island
-        for (label, island) in self.islands.iter_mut() {
+        for (label, island) in model.islands.iter_mut() {
             bitmatrix.clear();
 
             // dimensions of the matrix generated
@@ -34,7 +40,8 @@ impl LabeledModel {
             bitmatrix.resize(dx * dy * dz, false);
 
             // iterate over the area covered by the island
-            for ([ix, iy, iz], cell_label) in self.labeled_model.bounded_iter(island.bounding_box) {
+            for ([ix, iy, iz], cell_label) in model.labeled_model.bounded_iter(island.bounding_box)
+            {
                 if label == cell_label {
                     // count the cell as part of the island
                     island.voxels_count += 1;
@@ -57,7 +64,7 @@ impl LabeledModel {
             };
 
             // Assign the hash to the island
-            island.shape_hash = Some(hash);
+            let _ = mapping.insert(*label, hash);
 
             // if the shape is new, add it to the list
             shapes.entry(hash).or_insert_with(|| ShapeData {
@@ -67,6 +74,10 @@ impl LabeledModel {
         }
 
         // Return the shapes that have been identified
-        shapes
+        Self {
+            mapping,
+            shapes,
+            meshes,
+        }
     }
 }

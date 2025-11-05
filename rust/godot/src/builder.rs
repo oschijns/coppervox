@@ -1,3 +1,6 @@
+/// Build connectivity buffer from a incidence matrix
+mod connect;
+
 /// Read quads data to generate a mesh usable by Godot
 mod gd_mesher;
 

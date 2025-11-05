@@ -25,10 +25,9 @@ mod meshing;
 mod connecting;
 
 /// Iterator for reading results
-pub mod iterator;
-
+//pub mod iterator;
 use crate::Voxel;
-use bitvec::{order::Msb0, vec::BitVec};
+use bitvec::{order::Lsb0, vec::BitVec};
 use block_mesh::{QuadBuffer, QuadCoordinateConfig};
 use gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
@@ -49,7 +48,7 @@ pub struct LabeledModel {
 }
 
 /// Define an Island data
-struct IslandInfo {
+pub struct IslandInfo {
     /// Initial value of the voxels in the island
     voxel_value: Voxel,
 
@@ -58,15 +57,24 @@ struct IslandInfo {
 
     /// The bounding box around this island
     bounding_box: BoundingBox<3>,
+}
 
-    /// Hash of the shape associated with this island
-    shape_hash: Option<ShapeHash>,
+/// Set of shapes identified to be converted into meshes
+pub struct ShapeSet<M> {
+    /// Map an island label to the corresponding shape hash
+    mapping: HashMap<Label, ShapeHash>,
+
+    /// Store shape data so that it can be converted into meshes
+    shapes: HashMap<ShapeHash, ShapeData>,
+
+    /// Meshes generated for displaying the components
+    meshes: HashMap<ShapeHash, M>,
 }
 
 /// Matrix used by the block_mesh crate to generate the meshes
 pub struct ShapeData {
     /// The cells composing this matrix where each cell is encoded over a single bit
-    bitmatrix: BitVec<u64, Msb0>,
+    bitmatrix: BitVec<u64, Lsb0>,
 
     /// Dimensions of the matrix
     dimensions: [usize; 3],
@@ -80,11 +88,11 @@ pub trait QuadsReader<M> {
 
 /// Define connectivity between islands
 pub struct Connectivity {
-    /// Incidence matrix indicating connections between islands
-    graph: DiMatrix<Label, usize>,
-
     /// Mapping between labels and their corresponding node index
     mapping: HashMap<Label, NodeIndex>,
+
+    /// Incidence matrix indicating connections between islands
+    graph: DiMatrix<Label, usize>,
 }
 
 /// Store data about the voxel model that have been analyzed
@@ -92,8 +100,8 @@ pub struct Analysis<M> {
     /// The labeled model
     labeled_model: LabeledModel,
 
-    /// Meshes generated for displaying the components
-    meshes: HashMap<ShapeHash, M>,
+    /// Set of shapes identified
+    shape_set: ShapeSet<M>,
 
     /// Define the connections between the components
     connectivity: Connectivity,
@@ -101,7 +109,10 @@ pub struct Analysis<M> {
 
 /// Information on an island
 #[derive(Clone)]
-pub struct Info<M> {
+pub struct Info<'m, M> {
+    /// The label that was associated with the island
+    pub label: Label,
+
     /// The voxel value of the island
     pub voxel_value: Voxel,
 
@@ -109,7 +120,7 @@ pub struct Info<M> {
     pub voxels_count: usize,
 
     /// The mesh generated for the island
-    pub mesh: M,
+    pub mesh: &'m M,
 
     /// The identifier of the node in the incidence matrix
     pub node_index: NodeIndex,
@@ -118,12 +129,18 @@ pub struct Info<M> {
 /// Error reporting when accessing information
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
-    #[error("No island exists for the label")]
-    NoInfo,
+    #[error("missing island info")]
+    NoIsland,
 
-    #[error("No mesh was generated for the label")]
+    #[error("missing shape")]
+    NoShape,
+
+    #[error("missing mesh")]
     NoMesh,
 
-    #[error("No connectivity was evaluated for the label")]
+    #[error("missing connectivity")]
     NotConnected,
+
+    #[error("missing label")]
+    NoLabel,
 }

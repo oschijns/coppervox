@@ -11,4 +11,12 @@ edition = "2024"
 license = "MIT"
 
 [workspace.dependencies]
+
+# Provide explicit errors
 thiserror = "2.0"
+
+# Pack bits
+bitvec = "1"
+
+# Incidence matrix representing a directed graph
+petgraph = "0.8"

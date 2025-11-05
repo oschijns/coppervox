@@ -64,8 +64,10 @@ dependencies = [
 name = "coppervox_godot"
 version = "0.1.0"
 dependencies = [
+ "bitvec",
  "coppervox_analyzer",
  "godot",
+ "petgraph",
 ]
 
 [[package]]

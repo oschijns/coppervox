@@ -59,6 +59,6 @@ impl Connectivity {
         }
 
         // Return the generated graph
-        Self { graph, mapping }
+        Self { mapping, graph }
     }
 }
