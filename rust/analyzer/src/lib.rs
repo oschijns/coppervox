@@ -21,4 +21,4 @@ pub use block_mesh;
 pub use gridmap;
 
 // re-export types
-pub use analyzer::{Analysis, Connectivity, Error, Info, Label, QuadsReader};
+pub use analyzer::{Analysis, Connectivity, Error, Info, Label, QuadsReader, ShapeSet};

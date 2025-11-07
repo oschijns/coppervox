@@ -8,7 +8,7 @@ mod initialize;
 mod process;
 
 use godot::{
-    classes::{RdShaderFile, RdTextureView, RdUniform, RenderingDevice, RenderingServer},
+    classes::{RdTextureView, RdUniform, RenderingDevice},
     prelude::*,
 };
 use std::str::FromStr;
@@ -110,15 +110,6 @@ impl INode for Runner {
             sampler_buffer: Default::default(),
             work_buffers: Default::default(),
             flip_flop: false,
-        }
-    }
-
-    fn ready(&mut self) {
-        self.render_device = RenderingServer::singleton().create_local_rendering_device();
-        if let Some(mut render) = self.render_device.clone() {
-            let shader = load::<RdShaderFile>(&self.shaper_path);
-            self.shader = render.shader_create_from_spirv(shader.get_spirv().as_ref());
-            self.pipeline = render.compute_pipeline_create(self.shader);
         }
     }
 }

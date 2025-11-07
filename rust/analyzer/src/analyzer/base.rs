@@ -1,8 +1,9 @@
 use super::{Analysis, Connectivity, Error, Info, Label, LabeledModel, QuadsReader};
 use crate::{
     Model,
-    analyzer::{IslandInfo, ShapeData, ShapeSet, meshing::Mesher},
+    analyzer::{IslandInfo, ShapeData, ShapeHash, ShapeSet, meshing::Mesher},
 };
+use gridmap::hashbrown::hash_map::{Values, ValuesMut};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 impl<M> Analysis<M> {
@@ -67,6 +68,7 @@ where
             voxel_value: island.voxel_value,
             voxels_count: island.voxels_count,
             mesh,
+            origin: island.bounding_box.start,
             node_index,
         })
     }
@@ -81,6 +83,7 @@ where
             voxel_value: island.voxel_value,
             voxels_count: island.voxels_count,
             mesh,
+            origin: island.bounding_box.start,
             node_index,
         })
     }
@@ -122,6 +125,16 @@ impl<M> ShapeSet<M> {
         } else {
             Err(Error::NoMesh)
         }
+    }
+
+    /// Access the list of meshes generated
+    pub fn get_meshes(&self) -> Values<'_, ShapeHash, M> {
+        self.meshes.values()
+    }
+
+    /// Access the list of meshes generated
+    pub fn get_meshes_mut(&mut self) -> ValuesMut<'_, ShapeHash, M> {
+        self.meshes.values_mut()
     }
 }
 

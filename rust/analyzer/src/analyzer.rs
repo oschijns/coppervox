@@ -122,6 +122,9 @@ pub struct Info<'m, M> {
     /// The mesh generated for the island
     pub mesh: &'m M,
 
+    /// Position of the island in the world
+    pub origin: [isize; 3],
+
     /// The identifier of the node in the incidence matrix
     pub node_index: NodeIndex,
 }

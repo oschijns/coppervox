@@ -1,7 +1,7 @@
 use super::{Buffer, Runner, SamplerBuffer, WorkBuffer, config::*};
 use godot::{
     classes::{
-        RdTextureFormat, RdTextureView, RdUniform, RenderingDevice,
+        RdShaderFile, RdTextureFormat, RdTextureView, RdUniform, RenderingDevice, RenderingServer,
         rendering_device::{
             BufferCreationBits, DataFormat, TextureSamples, TextureType, TextureUsageBits,
             UniformType,
@@ -11,6 +11,16 @@ use godot::{
 };
 
 impl Runner {
+    /// Compile the shader
+    pub fn compile_shader(&mut self) {
+        self.render_device = RenderingServer::singleton().create_local_rendering_device();
+        if let Some(mut render) = self.render_device.clone() {
+            let shader = load::<RdShaderFile>(&self.shaper_path);
+            self.shader = render.shader_create_from_spirv(shader.get_spirv().as_ref());
+            self.pipeline = render.compute_pipeline_create(self.shader);
+        }
+    }
+
     /// Build a runner from a set of buffer
     pub fn build(&mut self, count: u32, connections: &[i32], operations: &[i32]) -> Result<(), ()> {
         // compute the number of dispatches necessary
