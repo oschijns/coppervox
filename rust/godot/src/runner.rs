@@ -7,6 +7,7 @@ mod initialize;
 /// Run the runner
 mod process;
 
+use crate::{CompIndex, CompValue};
 use coppervox_analyzer::gridmap::hashbrown::HashMap;
 use godot::{
     classes::{InputEvent, RdTextureView, RdUniform, RenderingDevice},
@@ -14,7 +15,6 @@ use godot::{
 };
 use petgraph::matrix_graph::NodeIndex;
 use std::str::FromStr;
-use crate::{CompIndex, CompValue};
 
 /// CopperVox runner for the logic circuit
 #[derive(GodotClass)]
@@ -137,6 +137,8 @@ impl INode for Runner {
         }
     }
 
+    /// Handle input events
+    #[inline]
     fn unhandled_input(&mut self, event: Gd<InputEvent>) {
         self.activator.evaluate_inputs(event);
     }

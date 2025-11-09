@@ -16,6 +16,9 @@ type CompIndex = usize;
 /// Value of a component in the buffer
 type CompValue = u32;
 
+/// Define type use to encode operation type
+pub type CompOp = i32;
+
 /// CopperVox as a Rust extension for godot
 struct CopperVoxExtension;
 

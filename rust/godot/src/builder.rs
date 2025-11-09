@@ -15,14 +15,11 @@ use coppervox_analyzer::{
 use godot::{classes::ShaderMaterial, prelude::*};
 use std::str::FromStr;
 
-/// Define type use to encode operation type
-pub type Operation = i32;
-
 /// CopperVox runner for the logic circuit
 #[derive(GodotClass)]
-#[class(base=Node, rename=CVBuilder)]
+#[class(base=Resource, rename=CVBuilder)]
 pub struct Builder {
-    base: Base<Node>,
+    base: Base<Resource>,
 
     /// Material to assign to the components being generated
     #[export]
@@ -97,8 +94,8 @@ pub struct Mapping {
 }
 
 #[godot_api]
-impl INode for Builder {
-    fn init(base: Base<Node>) -> Self {
+impl IResource for Builder {
+    fn init(base: Base<Resource>) -> Self {
         Self {
             base,
             material: None,
