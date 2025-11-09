@@ -24,12 +24,12 @@ impl Builder {
     pub fn instantiate_meshes(&mut self, analysis: &Analysis<Gd<ArrayMesh>>) {
         let mut render = RenderingServer::singleton();
 
+        // allocate space for the instantiated meshes
+        let incidence = analysis.connectivity().incidence_matrix();
+        self.instantiated_meshes.reserve(incidence.node_count());
+
         // iterate over each node
-        for node_index in analysis
-            .connectivity()
-            .incidence_matrix()
-            .node_identifiers()
-        {
+        for node_index in incidence.node_identifiers() {
             // For the given node, get the associated voxel value
             if let Ok(info) = analysis.info_from_node_index(node_index) {
                 let [x, y, z] = info.origin;
@@ -45,7 +45,19 @@ impl Builder {
                     self.instance_index_shader_parameter.arg(),
                     &Variant::from(node_index.index() as u64),
                 );
+
+                // Store the instance for later deletion
+                self.instantiated_meshes.push(inst);
             }
         }
+    }
+
+    /// Delete all instantiated meshes
+    pub fn delete(&mut self) {
+        let mut render = RenderingServer::singleton();
+        for &inst in self.instantiated_meshes.iter() {
+            render.free_rid(inst);
+        }
+        self.instantiated_meshes.clear();
     }
 }

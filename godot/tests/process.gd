@@ -5,14 +5,15 @@ const WORKGROUP := 256
 
 # Operations as defined in the compute shader
 enum Op {
-	OR   = 0,
-	AND  = 1,
-	NOR  = 2,
-	NAND = 3,
-	ADD  = 4,
-	MUL  = 5,
-	MIN  = 6,
-	MAX  = 7
+	CONST = 0,
+	OR    = 1,
+	AND   = 2,
+	NOR   = 3,
+	NAND  = 4,
+	ADD   = 5,
+	MUL   = 6,
+	MIN   = 7,
+	MAX   = 8
 }
 
 @export
@@ -38,6 +39,9 @@ var _pipeline := RID()
 var _buffer_in  := RID()
 var _buffer_out := RID()
 
+var _uniform_set_static : Array[RDUniform] = [] 
+var _uniform_set_input  : Array[RDUniform] = [] 
+var _uniform_set_output : Array[RDUniform] = [] 
 
 # Flag for storage buffers used in read-write operations
 const RW_BUFFER := RenderingDevice.BUFFER_CREATION_AS_STORAGE_BIT
@@ -56,7 +60,7 @@ func _ready() -> void:
 
 	# Load GLSL shader
 	var shader_file : RDShaderFile = load("res://gpu/process.glsl")
-	var shader   := rd.shader_create_from_spirv(shader_file.get_spirv())
+	var shader := rd.shader_create_from_spirv(shader_file.get_spirv())
 	_pipeline = rd.compute_pipeline_create(shader)
 
 	# Create uniforms to assign the buffer to the rendering device
@@ -68,21 +72,27 @@ func _ready() -> void:
 	var uni_tex  := create_texture_rd (rd)
 
 	# Set uniforms
-	var uniform_set : Array[RDUniform] = [uni_size, uni_conn, uni_op, uni_in, uni_out, uni_tex] 
+	_uniform_set_static = [uni_size, uni_conn, uni_op] 
+	_uniform_set_input  = [uni_in] 
+	_uniform_set_output = [uni_out, uni_tex] 
 
-	run_compute(rd, shader, uniform_set)
-	run_compute(rd, shader, uniform_set)
-	run_compute(rd, shader, uniform_set)
-	run_compute(rd, shader, uniform_set)
+	run_compute(rd, shader)
+	#run_compute(rd, shader)
+	#run_compute(rd, shader)
+	#run_compute(rd, shader)
 
 
-func run_compute(rd: RenderingDevice, shader: RID, uniform_set: Array[RDUniform]) -> void:
-	var uniforms := rd.uniform_set_create(uniform_set, shader, 0)
+func run_compute(rd: RenderingDevice, shader: RID) -> void:
+	var uni_static := rd.uniform_set_create(_uniform_set_static, shader, 0)
+	var uni_input  := rd.uniform_set_create(_uniform_set_input , shader, 1)
+	var uni_output := rd.uniform_set_create(_uniform_set_output, shader, 2)
 	
 	# Create a compute pipeline
 	var compute_list := rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, _pipeline)
-	rd.compute_list_bind_uniform_set(compute_list, uniforms, 0)
+	rd.compute_list_bind_uniform_set(compute_list, uni_static, 0)
+	rd.compute_list_bind_uniform_set(compute_list, uni_input , 1)
+	rd.compute_list_bind_uniform_set(compute_list, uni_output, 2)
 	rd.compute_list_dispatch(compute_list, _dispatch, 1, 1)
 	rd.compute_list_end()
 
@@ -100,13 +110,13 @@ func run_compute(rd: RenderingDevice, shader: RID, uniform_set: Array[RDUniform]
 
 
 func create_sizes(rd: RenderingDevice) -> RDUniform:
-	var bytes   := PackedByteArray()
+	var bytes := PackedByteArray()
 	bytes.resize(2 * 8)
 	bytes.encode_u64(0, inputs.size())
 	bytes.encode_u64(4, operations.size())
+
 	var buffer  := rd.uniform_buffer_create(bytes.size(), bytes)
 	var uniform := RDUniform.new()
-
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_UNIFORM_BUFFER
 	uniform.binding = 0
 	uniform.add_id(buffer)
@@ -117,8 +127,8 @@ func create_sizes(rd: RenderingDevice) -> RDUniform:
 func create_connections(rd: RenderingDevice) -> RDUniform:
 	var bytes   := connections.to_byte_array()
 	var buffer  := rd.storage_buffer_create(bytes.size(), bytes)
-	var uniform := RDUniform.new()
 
+	var uniform := RDUniform.new()
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
 	uniform.binding = 1
 	uniform.add_id(buffer)
@@ -129,8 +139,8 @@ func create_connections(rd: RenderingDevice) -> RDUniform:
 func create_operations(rd: RenderingDevice) -> RDUniform:
 	var bytes   := operations.to_byte_array()
 	var buffer  := rd.storage_buffer_create(bytes.size(), bytes)
-	var uniform := RDUniform.new()
 
+	var uniform := RDUniform.new()
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
 	uniform.binding = 2
 	uniform.add_id(buffer)
@@ -141,10 +151,10 @@ func create_operations(rd: RenderingDevice) -> RDUniform:
 func create_inputs(rd: RenderingDevice) -> RDUniform:
 	var bytes   := inputs.to_byte_array()
 	_buffer_in   = rd.storage_buffer_create(bytes.size(), bytes, 0, RW_BUFFER)
-	var uniform := RDUniform.new()
 
+	var uniform := RDUniform.new()
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	uniform.binding = 3
+	uniform.binding = 0
 	uniform.add_id(_buffer_in)
 
 	return uniform
@@ -154,10 +164,10 @@ func create_outputs(rd: RenderingDevice, size: int) -> RDUniform:
 	var bytes   := PackedByteArray()
 	bytes.resize(operations.size() * 4)
 	_buffer_out  = rd.storage_buffer_create(bytes.size(), bytes, 0, RW_BUFFER)
-	var uniform := RDUniform.new()
 
+	var uniform := RDUniform.new()
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	uniform.binding = 4
+	uniform.binding = 0
 	uniform.add_id(_buffer_out)
 
 	return uniform
@@ -172,12 +182,12 @@ func create_texture_rd(rd: RenderingDevice) -> RDUniform:
 	fmt.samples      = RenderingDevice.TEXTURE_SAMPLES_1
 	fmt.texture_type = RenderingDevice.TEXTURE_TYPE_1D
 	fmt.usage_bits   = TEXTURE_BUFFER
-	var view := RDTextureView.new()
-	var texture := rd.texture_create(fmt, view)
 
+	var view    := RDTextureView.new()
+	var texture := rd.texture_create(fmt, view)
 	var uniform := RDUniform.new()
 	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_IMAGE
-	uniform.binding = 5
+	uniform.binding = 1
 	uniform.add_id(texture)
 
 	return uniform

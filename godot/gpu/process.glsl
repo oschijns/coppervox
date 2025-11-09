@@ -3,19 +3,18 @@
 
 // Specify the size of integers used in this shader
 const uint INT_SIZE = 32;
-const uint INT_BIT = 5; // 2^5 = 32
-
-const uint FILLED = 0xffffffff;
+const uint INT_BIT  =  5; // 2^5 = 32
+const uint FILLED   = 0xffffffff;
 
 // List of operations supported
-const uint OP_OR   = 0;
-const uint OP_AND  = 1;
-const uint OP_NOR  = 2;
-const uint OP_NAND = 3;
-const uint OP_ADD  = 4;
-const uint OP_MUL  = 5;
-const uint OP_MIN  = 6;
-const uint OP_MAX  = 7;
+const uint OP_OR   = 1;
+const uint OP_AND  = 2;
+const uint OP_NOR  = 3;
+const uint OP_NAND = 4;
+const uint OP_ADD  = 5;
+const uint OP_MUL  = 6;
+const uint OP_MIN  = 7;
+const uint OP_MAX  = 8;
 
 
 // Use 256 local invocations per workgroup
@@ -61,7 +60,7 @@ layout(set = 2, binding = 0, std430) writeonly buffer Outputs {
 };
 
 // The output image to write to
-layout(set = 2, binding = 0, r32ui) writeonly uniform uimage1D write_output;
+layout(set = 2, binding = 1, r32ui) writeonly uniform uimage1D write_output;
 
 // Read the connection buffer to figure out if the input should be used
 bool use_input(uint output_idx, uint input_idx) {
@@ -163,7 +162,7 @@ void main() {
         case OP_MUL : result =  op_mul(gid, offset); break;
         case OP_MIN : result =  op_min(gid, offset); break;
         case OP_MAX : result =  op_max(gid, offset); break;
-        default: result = 0; break;
+        default: result = inputs[gid]; break;
     }
     outputs[gid] = result;
     imageStore(write_output, int(gid), uvec4(result));

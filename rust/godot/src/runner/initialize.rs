@@ -1,4 +1,5 @@
-use super::{Buffer, Compute, Runner, SamplerBuffer, config::*};
+use super::{ActivationData, Activator, Buffer, Compute, Runner, SamplerBuffer, config::*};
+use coppervox_analyzer::gridmap::hashbrown::HashMap;
 use godot::{
     classes::{
         RdShaderFile, RdTextureFormat, RdUniform, RenderingDevice, RenderingServer,
@@ -62,8 +63,14 @@ impl Runner {
         }
     }
 
+    /// Set the activators
+    #[inline]
+    pub fn init_activator(&mut self, actions: HashMap<StringName, ActivationData>) {
+        self.activator.init(actions);
+    }
+
     /// Delete the storage buffers associated
-    fn delete(&mut self, render: Gd<RenderingDevice>) {
+    pub fn delete(&mut self, render: Gd<RenderingDevice>) {
         self.buffer_size.delete(render.clone());
         self.buffer_connections.delete(render.clone());
         self.buffer_operations.delete(render.clone());
@@ -209,5 +216,19 @@ impl Compute {
         render.free_rid(self.pipeline);
         render.free_rid(self.shader);
         self.buffer_outputs.delete(render);
+    }
+}
+
+impl Activator {
+    /// Set the activators
+    fn init(&mut self, actions: HashMap<StringName, ActivationData>) {
+        self.actions = actions;
+
+        // Count the number of components that can be activated
+        let mut count = 0usize;
+        for (_, data) in self.actions.iter() {
+            count += data.indexes.len();
+        }
+        self.resolved.reserve(count);
     }
 }

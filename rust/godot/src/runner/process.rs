@@ -1,9 +1,9 @@
 use super::{
-    Compute,
-    config::{BIND_INPUTS, BIND_OUTPUTS, BIND_SIZE},
+    Activator, Compute,
+    config::{BIND_INPUTS, BIND_OUTPUTS, BIND_SIZE, ELEMENT_SIZE},
 };
 use godot::{
-    classes::{RenderingDevice, rendering_device::BufferCreationBits},
+    classes::{InputEvent, RenderingDevice, rendering_device::BufferCreationBits},
     prelude::*,
 };
 
@@ -46,5 +46,32 @@ impl Compute {
         // delete the uniform set for the inputs
         render.free_rid(uniform_set_input);
         render.free_rid(handle_input);
+    }
+}
+
+impl Activator {
+    /// Evaluate input events and determine which components to activate
+    pub fn evaluate_inputs(&mut self, event: Gd<InputEvent>) {
+        // Check each action in the activator list
+        for (action, data) in self.actions.iter() {
+            if event.is_action(action) {
+                // Either the component is activated or deactivated
+                let value = if event.is_pressed() { data.value } else { 0 };
+
+                // For each component to activate, set its value
+                for &index in data.indexes.iter() {
+                    self.resolved.insert(index, value);
+                }
+            }
+        }
+    }
+
+    /// Apply the resolved activations to the compute input buffer
+    pub fn apply_activations(&self, work_buffer: &mut PackedByteArray) {
+        // For each resolved activation, set the value in the buffer
+        for (&index, &value) in self.resolved.iter() {
+            let index = index * ELEMENT_SIZE;
+            let _ = work_buffer.encode_u32(index, value);
+        }
     }
 }

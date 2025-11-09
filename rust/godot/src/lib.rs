@@ -10,6 +10,12 @@ mod builder;
 
 use godot::prelude::*;
 
+/// Index of a component in the buffer
+type CompIndex = usize;
+
+/// Value of a component in the buffer
+type CompValue = u32;
+
 /// CopperVox as a Rust extension for godot
 struct CopperVoxExtension;
 

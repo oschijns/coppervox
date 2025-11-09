@@ -7,11 +7,14 @@ mod initialize;
 /// Run the runner
 mod process;
 
+use coppervox_analyzer::gridmap::hashbrown::HashMap;
 use godot::{
-    classes::{RdTextureView, RdUniform, RenderingDevice},
+    classes::{InputEvent, RdTextureView, RdUniform, RenderingDevice},
     prelude::*,
 };
+use petgraph::matrix_graph::NodeIndex;
 use std::str::FromStr;
+use crate::{CompIndex, CompValue};
 
 /// CopperVox runner for the logic circuit
 #[derive(GodotClass)]
@@ -43,6 +46,9 @@ pub struct Runner {
 
     /// Compute data
     compute_data: Compute,
+
+    /// Handle the activations of components based on input actions
+    activator: Activator,
 }
 
 /// Keep track of the handle to the storage buffer and the uniform associated with it
@@ -96,6 +102,24 @@ struct Compute {
     work_buffer: PackedByteArray,
 }
 
+/// Define which components are activated based on input actions
+struct Activator {
+    /// List of the input actions to check and the data related to the activation
+    actions: HashMap<StringName, ActivationData>,
+
+    /// Buffer of data to submit to the compute shader
+    resolved: HashMap<CompIndex, CompValue>,
+}
+
+/// Data related to an activation
+pub struct ActivationData {
+    /// The list of components to activate identified by their index
+    pub(crate) indexes: Vec<CompIndex>,
+
+    /// The value to set when activated
+    pub(crate) value: CompValue,
+}
+
 #[godot_api]
 impl INode for Runner {
     fn init(base: Base<Node>) -> Self {
@@ -109,7 +133,12 @@ impl INode for Runner {
             buffer_operations: Buffer::default(),
             sampler_buffer: SamplerBuffer::default(),
             compute_data: Compute::default(),
+            activator: Activator::default(),
         }
+    }
+
+    fn unhandled_input(&mut self, event: Gd<InputEvent>) {
+        self.activator.evaluate_inputs(event);
     }
 }
 
@@ -118,6 +147,11 @@ impl Runner {
     /// To be called at a fixed tick rate
     #[func]
     fn on_tick(&mut self) {
+        // Write inputs in the work buffer
+        self.activator
+            .apply_activations(&mut self.compute_data.work_buffer);
+
+        // Run the compute shader
         if let Some(render) = self.render_device.clone() {
             self.compute_data.tick(render);
         }
@@ -169,5 +203,37 @@ impl Default for Compute {
             uniform_set_output: Rid::Invalid,
             work_buffer: PackedByteArray::new(),
         }
+    }
+}
+
+impl Default for Activator {
+    fn default() -> Self {
+        Self {
+            actions: HashMap::new(),
+            resolved: HashMap::new(),
+        }
+    }
+}
+
+impl ActivationData {
+    /// Create a new activator
+    #[inline]
+    pub fn new(value: CompValue) -> Self {
+        Self {
+            indexes: Vec::new(),
+            value,
+        }
+    }
+
+    /// Add a new index to the list
+    #[inline]
+    pub fn add_index(&mut self, index: CompIndex) {
+        self.indexes.push(index);
+    }
+
+    /// Add a new index to the list
+    #[inline]
+    pub fn add_node_index(&mut self, node_index: NodeIndex) {
+        self.add_index(node_index.index() as CompIndex);
     }
 }

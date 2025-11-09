@@ -42,27 +42,30 @@ pub const BIND_SAMPLER: Layout = Layout::new(2, 1);
 #[derive(GodotConvert, Var, Export, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[godot(via = i32)]
 pub enum CVOperation {
+    /// constant value
+    Const = 0,
+
     /// bitwise OR operation
-    Or = 0,
+    Or = 1,
 
     /// bitwise AND operation
-    And = 1,
+    And = 2,
 
     /// bitwise NOR operation
-    Nor = 2,
+    Nor = 3,
 
     /// bitwise NAND operation
-    Nand = 3,
+    Nand = 4,
 
     /// arithmetic addition
-    Add = 4,
+    Add = 5,
 
     /// arithmetic multiplication
-    Mul = 5,
+    Mul = 6,
 
     /// Minimum
-    Min = 6,
+    Min = 7,
 
     /// Maximum
-    Max = 7,
+    Max = 8,
 }
