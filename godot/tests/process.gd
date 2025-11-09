@@ -35,14 +35,8 @@ var _pipeline := RID()
 
 
 # Handle the two buffers to swap
-var _buffer_a := RID()
-var _buffer_b := RID()
-
-# Create uniforms for the buffers
-var _uniform_a_in  : RDUniform = null
-var _uniform_a_out : RDUniform = null
-var _uniform_b_in  : RDUniform = null
-var _uniform_b_out : RDUniform = null
+var _buffer_in  := RID()
+var _buffer_out := RID()
 
 
 # Flag for storage buffers used in read-write operations
@@ -69,24 +63,26 @@ func _ready() -> void:
 	var uni_size := create_sizes      (rd)
 	var uni_conn := create_connections(rd)
 	var uni_op   := create_operations (rd)
-	create_swap_buffers(rd)
-	var uni_tex  := create_texture_rd(rd)
+	var uni_in   := create_inputs     (rd)
+	var uni_out  := create_outputs    (rd, inputs.size())
+	var uni_tex  := create_texture_rd (rd)
 
 	# Set uniforms
-	var uniform_set_a := rd.uniform_set_create([uni_size, uni_conn, uni_op, _uniform_a_in, _uniform_b_out, uni_tex], shader, 0)
-	var uniform_set_b := rd.uniform_set_create([uni_size, uni_conn, uni_op, _uniform_b_in, _uniform_a_out, uni_tex], shader, 0)
+	var uniform_set : Array[RDUniform] = [uni_size, uni_conn, uni_op, uni_in, uni_out, uni_tex] 
 
-	run_compute(rd, uniform_set_a, _buffer_b)
-	run_compute(rd, uniform_set_b, _buffer_a)
-	run_compute(rd, uniform_set_a, _buffer_b)
-	run_compute(rd, uniform_set_b, _buffer_a)
+	run_compute(rd, shader, uniform_set)
+	run_compute(rd, shader, uniform_set)
+	run_compute(rd, shader, uniform_set)
+	run_compute(rd, shader, uniform_set)
 
 
-func run_compute(rd: RenderingDevice, uniform_set: RID, buffer: RID) -> void:
+func run_compute(rd: RenderingDevice, shader: RID, uniform_set: Array[RDUniform]) -> void:
+	var uniforms := rd.uniform_set_create(uniform_set, shader, 0)
+	
 	# Create a compute pipeline
 	var compute_list := rd.compute_list_begin()
 	rd.compute_list_bind_compute_pipeline(compute_list, _pipeline)
-	rd.compute_list_bind_uniform_set(compute_list, uniform_set, 0)
+	rd.compute_list_bind_uniform_set(compute_list, uniforms, 0)
 	rd.compute_list_dispatch(compute_list, _dispatch, 1, 1)
 	rd.compute_list_end()
 
@@ -95,7 +91,7 @@ func run_compute(rd: RenderingDevice, uniform_set: RID, buffer: RID) -> void:
 	rd.sync()
 
 	# Read back the data from the buffer
-	var result := rd.buffer_get_data(buffer).to_int32_array()
+	var result := rd.buffer_get_data(_buffer_out).to_int32_array()
 	var output := ""
 	for i in range(result.size()):
 		output += " %04x," % result[i]
@@ -104,12 +100,14 @@ func run_compute(rd: RenderingDevice, uniform_set: RID, buffer: RID) -> void:
 
 
 func create_sizes(rd: RenderingDevice) -> RDUniform:
-	var data    := PackedInt32Array([inputs.size()])
-	var bytes   := data.to_byte_array()
-	var buffer  := rd.storage_buffer_create(bytes.size(), bytes)
+	var bytes   := PackedByteArray()
+	bytes.resize(2 * 8)
+	bytes.encode_u64(0, inputs.size())
+	bytes.encode_u64(4, operations.size())
+	var buffer  := rd.uniform_buffer_create(bytes.size(), bytes)
 	var uniform := RDUniform.new()
 
-	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
+	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_UNIFORM_BUFFER
 	uniform.binding = 0
 	uniform.add_id(buffer)
 
@@ -140,30 +138,29 @@ func create_operations(rd: RenderingDevice) -> RDUniform:
 	return uniform
 
 
-func create_swap_buffers(rd: RenderingDevice) -> void:
-	var bytes := inputs.to_byte_array()
-	_buffer_a = rd.storage_buffer_create(bytes.size(), bytes, 0, RW_BUFFER)
-	_buffer_b = rd.storage_buffer_create(bytes.size(), bytes, 0, RW_BUFFER)
-	_uniform_a_in  = RDUniform.new()
-	_uniform_a_out = RDUniform.new()
-	_uniform_b_in  = RDUniform.new()
-	_uniform_b_out = RDUniform.new()
+func create_inputs(rd: RenderingDevice) -> RDUniform:
+	var bytes   := inputs.to_byte_array()
+	_buffer_in   = rd.storage_buffer_create(bytes.size(), bytes, 0, RW_BUFFER)
+	var uniform := RDUniform.new()
 
-	_uniform_a_in.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	_uniform_a_in.binding = 3
-	_uniform_a_in.add_id(_buffer_a)
+	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
+	uniform.binding = 3
+	uniform.add_id(_buffer_in)
 
-	_uniform_a_out.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	_uniform_a_out.binding = 4
-	_uniform_a_out.add_id(_buffer_a)
+	return uniform
 
-	_uniform_b_in.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	_uniform_b_in.binding = 3
-	_uniform_b_in.add_id(_buffer_b)
 
-	_uniform_b_out.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
-	_uniform_b_out.binding = 4
-	_uniform_b_out.add_id(_buffer_b)
+func create_outputs(rd: RenderingDevice, size: int) -> RDUniform:
+	var bytes   := PackedByteArray()
+	bytes.resize(operations.size() * 4)
+	_buffer_out  = rd.storage_buffer_create(bytes.size(), bytes, 0, RW_BUFFER)
+	var uniform := RDUniform.new()
+
+	uniform.uniform_type = RenderingDevice.UNIFORM_TYPE_STORAGE_BUFFER
+	uniform.binding = 4
+	uniform.add_id(_buffer_out)
+
+	return uniform
 
 
 func create_texture_rd(rd: RenderingDevice) -> RDUniform:

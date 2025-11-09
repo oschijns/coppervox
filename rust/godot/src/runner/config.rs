@@ -1,25 +1,41 @@
 use godot::prelude::*;
 
+/// Storage buffer entry type size
+pub const ELEMENT_SIZE: usize = size_of::<u32>();
+
 /// Size of a workgroup in the compute shader
-pub const WORKGROUP_SIZE: u32 = 256;
+pub const WORKGROUP_SIZE: usize = 256;
+
+/// Layouts for the compute shader
+pub struct Layout {
+    pub set: u32,
+    pub binding: i32,
+}
+
+impl Layout {
+    /// Create a new layout corresponding to the compute shader
+    const fn new(set: u32, binding: i32) -> Self {
+        Self { set, binding }
+    }
+}
 
 /// Binding point for the number of components
-pub const BIND_SIZE: i32 = 0;
+pub const BIND_SIZE: Layout = Layout::new(0, 0);
 
 /// Binding point for the incidence matrix
-pub const BIND_CONNECTIONS: i32 = 1;
+pub const BIND_CONNECTIONS: Layout = Layout::new(0, 1);
 
 /// Binding point for the types of the components
-pub const BIND_OPERATIONS: i32 = 2;
+pub const BIND_OPERATIONS: Layout = Layout::new(0, 2);
 
 /// Binding point for the inputs
-pub const BIND_INPUTS: i32 = 3;
+pub const BIND_INPUTS: Layout = Layout::new(1, 0);
 
 /// Binding point for the outputs
-pub const BIND_OUTPUTS: i32 = 4;
+pub const BIND_OUTPUTS: Layout = Layout::new(2, 0);
 
 /// Binding point for the output sampler
-pub const BIND_SAMPLER: i32 = 5;
+pub const BIND_SAMPLER: Layout = Layout::new(2, 1);
 
 /// Operations defined in the compute shader
 #[repr(C)]

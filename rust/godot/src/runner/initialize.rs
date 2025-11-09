@@ -1,7 +1,7 @@
-use super::{Buffer, Runner, SamplerBuffer, WorkBuffer, config::*};
+use super::{Buffer, Compute, Runner, SamplerBuffer, config::*};
 use godot::{
     classes::{
-        RdShaderFile, RdTextureFormat, RdTextureView, RdUniform, RenderingDevice, RenderingServer,
+        RdShaderFile, RdTextureFormat, RdUniform, RenderingDevice, RenderingServer,
         rendering_device::{
             BufferCreationBits, DataFormat, TextureSamples, TextureType, TextureUsageBits,
             UniformType,
@@ -14,48 +14,46 @@ impl Runner {
     /// Compile the shader
     pub fn compile_shader(&mut self) {
         self.render_device = RenderingServer::singleton().create_local_rendering_device();
-        if let Some(mut render) = self.render_device.clone() {
-            let shader = load::<RdShaderFile>(&self.shaper_path);
-            self.shader = render.shader_create_from_spirv(shader.get_spirv().as_ref());
-            self.pipeline = render.compute_pipeline_create(self.shader);
+        if let Some(render) = self.render_device.clone() {
+            self.compute_data.compile_shader(render, &self.shader_path);
         }
     }
 
     /// Build a runner from a set of buffer
-    pub fn build(&mut self, count: u32, connections: &[i32], operations: &[i32]) -> Result<(), ()> {
-        // compute the number of dispatches necessary
-        self.dispatches_count = count.div_ceil(WORKGROUP_SIZE);
-
+    pub fn build(
+        &mut self,
+        count: usize,
+        connections: &[i32],
+        operations: &[i32],
+    ) -> Result<(), ()> {
         // prepare the storage buffers
         if let Some(render) = self.render_device.clone() {
-            self.buffer_size
-                .build(render.clone(), &[count as i32], BIND_SIZE);
-            self.buffer_connections
-                .build(render.clone(), connections, BIND_CONNECTIONS);
-            self.buffer_operations
-                .build(render.clone(), operations, BIND_OPERATIONS);
-            self.sampler_buffer.build(render.clone(), count);
-
-            // prepare the two work buffers
-            let [buffer_a, buffer_b] = &mut self.work_buffers;
-            WorkBuffer::build(buffer_a, buffer_b, render.clone(), count);
-
-            // Define two uniform set for swapping between the two work buffers
-            buffer_a.build_uniform_set(
+            self.buffer_size.build_uniform(
                 render.clone(),
-                &self.buffer_size,
-                &self.buffer_connections,
-                &self.buffer_operations,
-                &self.sampler_buffer,
-                self.shader,
+                [count as u64, count as u64],
+                BIND_SIZE.binding,
             );
-            buffer_b.build_uniform_set(
+            self.buffer_connections.build_storage(
                 render.clone(),
-                &self.buffer_size,
-                &self.buffer_connections,
-                &self.buffer_operations,
-                &self.sampler_buffer,
-                self.shader,
+                connections,
+                BIND_CONNECTIONS.binding,
+            );
+            self.buffer_operations.build_storage(
+                render.clone(),
+                operations,
+                BIND_OPERATIONS.binding,
+            );
+
+            self.sampler_buffer
+                .build(render.clone(), count, BIND_SAMPLER.binding);
+
+            self.compute_data.build(
+                render,
+                count,
+                &self.buffer_size.uniform,
+                &self.buffer_connections.uniform,
+                &self.buffer_operations.uniform,
+                &self.sampler_buffer.uniform,
             );
 
             Ok(())
@@ -64,35 +62,65 @@ impl Runner {
         }
     }
 
-    /// Access the texture handle
-    #[inline]
-    pub fn get_texture_handle(&self) -> Rid {
-        self.sampler_buffer.handle
-    }
-}
-
-/// Allocate memory
-impl Default for Buffer {
-    fn default() -> Self {
-        let mut uniform = RdUniform::new_gd();
-        uniform.set_uniform_type(UniformType::STORAGE_BUFFER);
-
-        Self {
-            handle: Rid::Invalid,
-            uniform,
-        }
+    /// Delete the storage buffers associated
+    fn delete(&mut self, render: Gd<RenderingDevice>) {
+        self.buffer_size.delete(render.clone());
+        self.buffer_connections.delete(render.clone());
+        self.buffer_operations.delete(render.clone());
+        self.sampler_buffer.delete(render.clone());
+        self.compute_data.delete(render);
     }
 }
 
 impl Buffer {
     /// Create the buffer with the provided data
-    fn build(&mut self, mut render: Gd<RenderingDevice>, integers: &[i32], binding: i32) {
+    fn build_uniform<const S: usize>(
+        &mut self,
+        mut render: Gd<RenderingDevice>,
+        data: [u64; S],
+        binding: i32,
+    ) {
+        // Create an uniform buffer given the provided data
+        let mut bytes = PackedByteArray::new();
+        bytes.resize(S);
+        for (i, &d) in data.iter().enumerate() {
+            let _ = bytes.encode_u64(i * size_of::<u64>(), d);
+        }
+        self.handle = render
+            .uniform_buffer_create_ex(bytes.len() as u32)
+            .data(&bytes)
+            .done();
+        self.uniform.set_uniform_type(UniformType::UNIFORM_BUFFER);
+        self.uniform.set_binding(binding);
+        self.uniform.add_id(self.handle);
+    }
+
+    /// Create the buffer with the provided data
+    fn build_storage(&mut self, mut render: Gd<RenderingDevice>, integers: &[i32], binding: i32) {
         // Create a storage buffer given the provided data
         let bytes = PackedInt32Array::from(integers).to_byte_array();
         self.handle = render
             .storage_buffer_create_ex(bytes.len() as u32)
             .data(&bytes)
             .done();
+        self.uniform.set_uniform_type(UniformType::STORAGE_BUFFER);
+        self.uniform.set_binding(binding);
+        self.uniform.add_id(self.handle);
+    }
+
+    /// Create the buffer with the provided data
+    fn build_read_write_storage(
+        &mut self,
+        mut render: Gd<RenderingDevice>,
+        count: usize,
+        binding: i32,
+    ) {
+        // Create a storage buffer given the provided data
+        self.handle = render
+            .storage_buffer_create_ex((count * ELEMENT_SIZE) as u32)
+            .creation_bits(BufferCreationBits::AS_STORAGE_BIT)
+            .done();
+        self.uniform.set_uniform_type(UniformType::STORAGE_BUFFER);
         self.uniform.set_binding(binding);
         self.uniform.add_id(self.handle);
     }
@@ -100,114 +128,14 @@ impl Buffer {
     /// Delete the storage buffer associated
     fn delete(&mut self, mut render: Gd<RenderingDevice>) {
         render.free_rid(self.handle);
-        self.handle = Rid::Invalid;
-    }
-}
-
-/// Allocate memory
-impl Default for WorkBuffer {
-    fn default() -> Self {
-        let mut uniform_input = RdUniform::new_gd();
-        let mut uniform_output = RdUniform::new_gd();
-        uniform_input.set_uniform_type(UniformType::STORAGE_BUFFER);
-        uniform_output.set_uniform_type(UniformType::STORAGE_BUFFER);
-        uniform_input.set_binding(BIND_INPUTS);
-        uniform_output.set_binding(BIND_OUTPUTS);
-
-        Self {
-            handle: Rid::Invalid,
-            uniform_input,
-            uniform_output,
-            uniform_set: Rid::Invalid,
-        }
-    }
-}
-
-impl WorkBuffer {
-    /// Create the work buffers
-    fn build(
-        buffer_a: &mut Self,
-        buffer_b: &mut Self,
-        mut render: Gd<RenderingDevice>,
-        count: u32,
-    ) {
-        // Create a storage buffer with the given size
-        let size = count * size_of::<i32>() as u32;
-        macro_rules! make {
-            () => {
-                render
-                    .storage_buffer_create_ex(size)
-                    .creation_bits(BufferCreationBits::AS_STORAGE_BIT)
-                    .done()
-            };
-        }
-        buffer_a.handle = make!();
-        buffer_b.handle = make!();
-
-        // link the two buffers as input and output
-        macro_rules! set {
-            ($buf_in:ident -> $buf_out:ident) => {
-                $buf_out.uniform_input.add_id($buf_in.handle);
-                $buf_out.uniform_output.add_id($buf_out.handle);
-            };
-        }
-        set! { buffer_a -> buffer_b }
-        set! { buffer_b -> buffer_a }
-    }
-
-    /// Create uniform set
-    fn build_uniform_set(
-        &mut self,
-        mut render: Gd<RenderingDevice>,
-        buffer_size: &Buffer,
-        buffer_connections: &Buffer,
-        buffer_operations: &Buffer,
-        sampler_buffer: &SamplerBuffer,
-        shader: Rid,
-    ) {
-        self.uniform_set = render.uniform_set_create(
-            &array![
-                &buffer_size.uniform,
-                &buffer_connections.uniform,
-                &buffer_operations.uniform,
-                &self.uniform_input,
-                &self.uniform_output,
-                &sampler_buffer.uniform
-            ],
-            shader,
-            0,
-        );
-    }
-
-    /// Delete the storage buffers associated
-    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
-        render.free_rid(self.handle);
-        render.free_rid(self.uniform_set);
-        self.handle = Rid::Invalid;
-        self.uniform_set = Rid::Invalid;
-    }
-}
-
-/// Allocate memory
-impl Default for SamplerBuffer {
-    fn default() -> Self {
-        let mut uniform = RdUniform::new_gd();
-        uniform.set_uniform_type(UniformType::IMAGE);
-        uniform.set_binding(BIND_SAMPLER);
-
-        Self {
-            handle: Rid::Invalid,
-            uniform,
-            view: RdTextureView::new_gd(),
-        }
     }
 }
 
 impl SamplerBuffer {
     /// Create the buffer with the appropriate size
-    fn build(&mut self, mut render: Gd<RenderingDevice>, count: u32) {
+    fn build(&mut self, mut render: Gd<RenderingDevice>, count: usize, binding: i32) {
         let mut fmt = RdTextureFormat::new_gd();
-        fmt.set_width(count);
+        fmt.set_width(count as u32);
         fmt.set_height(1);
         fmt.set_depth(1);
         fmt.set_format(DataFormat::R32_UINT);
@@ -216,12 +144,70 @@ impl SamplerBuffer {
         fmt.set_usage_bits(TextureUsageBits::SAMPLING_BIT | TextureUsageBits::STORAGE_BIT);
 
         self.handle = render.texture_create(&fmt, &self.view);
+        self.uniform.set_binding(binding);
+        self.uniform.set_uniform_type(UniformType::IMAGE);
         self.uniform.add_id(self.handle);
     }
 
     /// Delete the storage buffer associated
     fn delete(&mut self, mut render: Gd<RenderingDevice>) {
         render.free_rid(self.handle);
-        self.handle = Rid::Invalid;
+    }
+}
+
+impl Compute {
+    /// Compile the shader
+    fn compile_shader(&mut self, mut render: Gd<RenderingDevice>, shader_path: &GString) {
+        let shader = load::<RdShaderFile>(shader_path);
+        self.shader = render.shader_create_from_spirv(shader.get_spirv().as_ref());
+        self.pipeline = render.compute_pipeline_create(self.shader);
+    }
+
+    /// Build the uniform set
+    fn build(
+        &mut self,
+        render: Gd<RenderingDevice>,
+        count: usize,
+        uniform_size: &Gd<RdUniform>,
+        uniform_connections: &Gd<RdUniform>,
+        uniform_operations: &Gd<RdUniform>,
+        uniform_sampler: &Gd<RdUniform>,
+    ) {
+        // compute the number of dispatches necessary
+        self.dispatches_count = count.div_ceil(WORKGROUP_SIZE) as u32;
+        self.buffer_outputs.build_read_write_storage(
+            render.clone(),
+            count as usize,
+            BIND_OUTPUTS.binding,
+        );
+
+        // build uniform lists to pass to the rendering pipeline
+        let uniform_list_static = array![uniform_size, uniform_connections, uniform_operations,];
+        let uniform_list_output = array![&self.buffer_outputs.uniform, uniform_sampler];
+
+        // Create the uniform set for static values
+        self.uniform_set_static =
+            render
+                .clone()
+                .uniform_set_create(&uniform_list_static, self.shader, BIND_SIZE.set);
+
+        // The uniform set for input values should be created before every tick
+        // The uniform set for output values can be created now too
+        self.uniform_set_output =
+            render
+                .clone()
+                .uniform_set_create(&uniform_list_output, self.shader, BIND_OUTPUTS.set);
+
+        // Allocate a buffer large enough for each
+        self.work_buffer.resize(count * ELEMENT_SIZE);
+    }
+
+    /// Delete data that was allocated
+    fn delete(&mut self, mut render: Gd<RenderingDevice>) {
+        render.free_rid(self.uniform_set_static);
+        render.free_rid(self.uniform_set_output);
+        render.free_rid(self.pipeline);
+        render.free_rid(self.shader);
+        self.buffer_outputs.delete(render);
     }
 }

@@ -21,19 +21,10 @@ pub struct Runner {
 
     /// Path to the compute shader to load
     #[export]
-    shaper_path: GString,
-
-    /// Handle to shader compiled
-    shader: Rid,
+    shader_path: GString,
 
     /// The rendering device this runner uses
     render_device: Option<Gd<RenderingDevice>>,
-
-    /// Pipeline for running the compute shader
-    pipeline: Rid,
-
-    /// Number of dispatches to run the compute shader with
-    dispatches_count: u32,
 
     /// The number of components to operate
     components_count: u32,
@@ -50,11 +41,8 @@ pub struct Runner {
     /// Sampler used to pass data from the compute shader to the rendering shader
     sampler_buffer: SamplerBuffer,
 
-    /// IO work buffers to swap every tick
-    work_buffers: [WorkBuffer; 2],
-
-    /// flip-flop flag for specifying which buffer to use as input and the other as output
-    flip_flop: bool,
+    /// Compute data
+    compute_data: Compute,
 }
 
 /// Keep track of the handle to the storage buffer and the uniform associated with it
@@ -64,21 +52,6 @@ struct Buffer {
 
     /// uniform associated
     uniform: Gd<RdUniform>,
-}
-
-/// Handles for a work buffer
-struct WorkBuffer {
-    /// Handle to the storage buffer
-    handle: Rid,
-
-    /// uniform used as an input
-    uniform_input: Gd<RdUniform>,
-
-    /// uniform used as an output
-    uniform_output: Gd<RdUniform>,
-
-    /// Uniforms list for using the storage buffer as an output
-    uniform_set: Rid,
 }
 
 /// Texture buffer shared between the compute shader and the visual shader
@@ -93,23 +66,49 @@ struct SamplerBuffer {
     view: Gd<RdTextureView>,
 }
 
+/// Compute data to submit every tick
+struct Compute {
+    /// Handle to shader compiled
+    shader: Rid,
+
+    /// Pipeline for running the compute shader
+    pipeline: Rid,
+
+    /// Number of dispatches to run the compute shader with
+    dispatches_count: u32,
+
+    /// Uniform for the input buffer
+    uniform_inputs: Gd<RdUniform>,
+
+    /// List of uniforms to build an uniform set for the input
+    uniform_list_input: Array<Gd<RdUniform>>,
+
+    /// Storage buffer for the outputs
+    buffer_outputs: Buffer,
+
+    /// Uniform set for static values in the compute shader
+    uniform_set_static: Rid,
+
+    /// Uniform set for output values in the compute shader
+    uniform_set_output: Rid,
+
+    /// Buffer that is submitted as an input then retrieved as an output
+    work_buffer: PackedByteArray,
+}
+
 #[godot_api]
 impl INode for Runner {
     fn init(base: Base<Node>) -> Self {
         Self {
             base,
-            shaper_path: GString::from_str("res://process.glsl").unwrap(),
-            shader: Rid::Invalid,
+            shader_path: GString::from_str("res://process.glsl").unwrap(),
             render_device: None,
-            pipeline: Rid::Invalid,
-            dispatches_count: 0,
             components_count: 0,
-            buffer_size: Default::default(),
-            buffer_connections: Default::default(),
-            buffer_operations: Default::default(),
-            sampler_buffer: Default::default(),
-            work_buffers: Default::default(),
-            flip_flop: false,
+            buffer_size: Buffer::default(),
+            buffer_connections: Buffer::default(),
+            buffer_operations: Buffer::default(),
+            sampler_buffer: SamplerBuffer::default(),
+            compute_data: Compute::default(),
         }
     }
 }
@@ -119,6 +118,56 @@ impl Runner {
     /// To be called at a fixed tick rate
     #[func]
     fn on_tick(&mut self) {
-        self.tick();
+        if let Some(render) = self.render_device.clone() {
+            self.compute_data.tick(render);
+        }
+    }
+
+    /// Access the texture handle
+    #[func]
+    #[inline]
+    pub fn get_texture_handle(&self) -> Rid {
+        self.sampler_buffer.handle
+    }
+}
+
+/// Allocate memory
+impl Default for Buffer {
+    fn default() -> Self {
+        Self {
+            handle: Rid::Invalid,
+            uniform: RdUniform::new_gd(),
+        }
+    }
+}
+
+/// Allocate memory
+impl Default for SamplerBuffer {
+    fn default() -> Self {
+        Self {
+            handle: Rid::Invalid,
+            uniform: RdUniform::new_gd(),
+            view: RdTextureView::new_gd(),
+        }
+    }
+}
+
+/// Allocate storage for compute data
+impl Default for Compute {
+    fn default() -> Self {
+        let uniform_inputs = RdUniform::new_gd();
+        let uniform_list_input = array![&uniform_inputs];
+
+        Self {
+            shader: Rid::Invalid,
+            pipeline: Rid::Invalid,
+            dispatches_count: 0,
+            uniform_inputs,
+            uniform_list_input,
+            buffer_outputs: Buffer::default(),
+            uniform_set_static: Rid::Invalid,
+            uniform_set_output: Rid::Invalid,
+            work_buffer: PackedByteArray::new(),
+        }
     }
 }
