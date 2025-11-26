@@ -1,6 +1,9 @@
 #[compute]
 #version 460
 
+// Define the maximum amount of connections per component
+const uint MAX_CONN = 32;
+
 // Specify the size of integers used in this shader
 const uint INT_SIZE = 32;
 const uint INT_BIT  =  5; // 2^5 = 32
@@ -33,14 +36,14 @@ layout(set = 0, binding = 0) restrict readonly uniform Size {
 // Connection matrix of the components.
 layout(set = 0, binding = 1, std430) restrict readonly buffer Connections {
     // Store a single bit for each input-output connections.
-    // This buffer should be `(size_out * size_in + 1) / 32`.
+    // This buffer should be `size_out * MAX_CONN`.
     // Accessing this buffer should be equivalent to [out][in] for optimization purposes.
     uint connections[];
 };
 
 // Specify the types of the output components indicating which operation to execute.
 layout(set = 0, binding = 2, std430) restrict readonly buffer Operations {
-    // Specify the operation to execute for each output.
+    // Specify the operation to execute for each output and the number of inputs to read from.
     // This buffer should be `size_out` long.
     uint operations[];
 };
@@ -62,81 +65,57 @@ layout(set = 2, binding = 0, std430) writeonly buffer Outputs {
 // The output image to write to
 layout(set = 2, binding = 1, r32ui) writeonly uniform uimage1D write_output;
 
-// Read the connection buffer to figure out if the input should be used
-bool use_input(uint output_idx, uint input_idx) {
-    uint bit_pos = output_idx * size_in + input_idx;
-
-    // Calculate which word and bit within that word
-    uint word_idx = bit_pos >> INT_BIT;       // Divide by 32
-    uint bit_idx  = bit_pos & (INT_SIZE - 1); // Modulo 32
-
-    // Get the word and check the bit
-    uint word = connections[word_idx];
-    return ((word >> bit_idx) & 1u) != 0u;
-}
 
 // Process OR operation
-uint op_or(uint gid, uint offset) {
+uint op_or(uint offset, uint count) {
     uint result = 0;
-    for (uint i = 0; i < size_in; ++i) {
-        if (i != gid && use_input(offset, i)) {
-            result |= inputs[i];
-        }
+    for (uint i = 0; i < max(count, MAX_CONN); ++i) {
+        result |= inputs[connections[offset + i]];
     }
     return result;
 }
 
 // Process AND operation
-uint op_and(uint gid, uint offset) {
+uint op_and(uint offset, uint count) {
     uint result = FILLED;
-    for (uint i = 0; i < size_in; ++i) {
-        if (i != gid && use_input(offset, i)) {
-            result &= inputs[i];
-        }
+    for (uint i = 0; i < max(count, MAX_CONN); ++i) {
+        result &= inputs[connections[offset + i]];
     }
     return result;
 }
 
 // Process ADD operation
-uint op_add(uint gid, uint offset) {
+uint op_add(uint offset, uint count) {
     uint result = 0;
-    for (uint i = 0; i < size_in; ++i) {
-        if (i != gid && use_input(offset, i)) {
-            result += inputs[i];
-        }
+    for (uint i = 0; i < max(count, MAX_CONN); ++i) {
+        result += inputs[connections[offset + i]];
     }
     return result;
 }
 
 // Process MUL operation
-uint op_mul(uint gid, uint offset) {
+uint op_mul(uint offset, uint count) {
     uint result = 1;
-    for (uint i = 0; i < size_in; ++i) {
-        if (i != gid && use_input(offset, i)) {
-            result *= inputs[i];
-        }
+    for (uint i = 0; i < max(count, MAX_CONN); ++i) {
+        result *= inputs[connections[offset + i]];
     }
     return result;
 }
 
 // Process MIN operation
-uint op_min(uint gid, uint offset) {
+uint op_min(uint offset, uint count) {
     uint result = FILLED;
-    for (uint i = 0; i < size_in; ++i) {
-        if (i != gid && use_input(offset, i)) {
-            result = min(result, inputs[i]);
-        }
+    for (uint i = 0; i < max(count, MAX_CONN); ++i) {
+        result = min(result, inputs[connections[offset + i]]);
     }
     return result;
 }
 
 // Process MAX operation
-uint op_max(uint gid, uint offset) {
+uint op_max(uint offset, uint count) {
     uint result = 0;
-    for (uint i = 0; i < size_in; ++i) {
-        if (i != gid && use_input(offset, i)) {
-            result = max(result, inputs[i]);
-        }
+    for (uint i = 0; i < max(count, MAX_CONN); ++i) {
+        result = max(result, inputs[connections[offset + i]]);
     }
     return result;
 }
@@ -149,19 +128,23 @@ void main() {
     if (gid >= size_out) return;
 
     // Compute the offset to use to access the connection matrix.
-    uint offset = gid * (size_out + 1) >> INT_BIT; // divide by INT_SIZE
+    uint offset = gid * MAX_CONN;
+
+    // Get the config of the component (operation + input count)
+    uint data  = operations[gid];
+    uint count = data >> 8;
 
     // Result to store in the output buffer
     uint result;
-    switch (operations[gid]) {
-        case OP_OR  : result =  op_or (gid, offset); break;
-        case OP_AND : result =  op_and(gid, offset); break;
-        case OP_NOR : result = ~op_or (gid, offset); break;
-        case OP_NAND: result = ~op_and(gid, offset); break;
-        case OP_ADD : result =  op_add(gid, offset); break;
-        case OP_MUL : result =  op_mul(gid, offset); break;
-        case OP_MIN : result =  op_min(gid, offset); break;
-        case OP_MAX : result =  op_max(gid, offset); break;
+    switch (data & 0xff) {
+        case OP_OR  : result =  op_or (offset, count); break;
+        case OP_AND : result =  op_and(offset, count); break;
+        case OP_NOR : result = ~op_or (offset, count); break;
+        case OP_NAND: result = ~op_and(offset, count); break;
+        case OP_ADD : result =  op_add(offset, count); break;
+        case OP_MUL : result =  op_mul(offset, count); break;
+        case OP_MIN : result =  op_min(offset, count); break;
+        case OP_MAX : result =  op_max(offset, count); break;
         default: result = inputs[gid]; break;
     }
     outputs[gid] = result;
