@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
-members = ["analyzer", "godot"]
+members = [
+    "analyzer",
+    "importer",
+    "godot",
+    "processor_cl",
+    "processor_wgpu"
+]
 
 [workspace.package]
 authors = ["Olivier SCHYNS <https://github.com/oschijns>"]
