@@ -1,10 +1,16 @@
 use godot::prelude::*;
 
+/// Maximum of connections allowed per component
+pub const MAX_CONNECTIONS: usize = 32;
+
 /// Storage buffer entry type size
 pub const ELEMENT_SIZE: usize = size_of::<u32>();
 
 /// Size of a workgroup in the compute shader
 pub const WORKGROUP_SIZE: usize = 256;
+
+/// Bit shift to apply to combine operation type and connections count
+pub const OP_BIT_SHIFT: usize = 8;
 
 /// Layouts for the compute shader
 pub struct Layout {
