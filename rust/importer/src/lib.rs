@@ -5,4 +5,4 @@ mod magica;
 mod gimp;
 
 // re-export functions
-pub use magica::convert_magica;
+//pub use magica::convert_magica;
