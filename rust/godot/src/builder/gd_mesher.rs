@@ -4,11 +4,11 @@ use coppervox_analyzer::{
 };
 use godot::{
     builtin::{
-        PackedInt32Array, PackedVector2Array, PackedVector3Array, Variant, VariantArray, Vector2,
-        Vector3,
+        PackedInt32Array, PackedVector2Array, PackedVector3Array, Variant, Vector2, Vector3,
     },
     classes::{
         ArrayMesh,
+        class_macros::private::virtuals::Os::VarArray,
         mesh::{ArrayType, PrimitiveType},
     },
     meta::ToGodot,
@@ -34,6 +34,14 @@ pub struct GdMesher {
 
     /// Flag indicating if UVs should be flipped vertically
     uv_flip_v: bool,
+}
+
+impl Default for GdMesher {
+    /// Create a mesher without preallocated buffer and without UV coordinates generation
+    #[inline]
+    fn default() -> Self {
+        Self::new(0)
+    }
 }
 
 impl GdMesher {
@@ -101,7 +109,7 @@ impl QuadsReader<Gd<ArrayMesh>> for GdMesher {
         }
 
         // group the generated arrays to be passed to Godot
-        let mut arrays = VariantArray::new();
+        let mut arrays = VarArray::new();
         arrays.resize(ArrayType::MAX.ord() as usize, &Variant::nil());
 
         // convert the arrays into ones supported by Godot

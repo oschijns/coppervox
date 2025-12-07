@@ -1,9 +1,9 @@
-use super::{ComponentType, Qualifier};
+use super::{BuilderError, ComponentType, VoxelQualifier};
 use crate::runner::{
     ActivationData,
     config::{CVOperation, MAX_CONNECTIONS, OP_BIT_SHIFT},
 };
-use coppervox_analyzer::{Analysis, Connectivity, gridmap::hashbrown::HashMap};
+use coppervox_analyzer::{Analysis, gridmap::hashbrown::HashMap};
 use godot::prelude::*;
 use petgraph::visit::IntoNodeIdentifiers;
 
@@ -26,14 +26,14 @@ impl GeneratedBuffers {
     /// Identify the type of each component from the data being read initially
     pub fn build<M>(
         analysis: &Analysis<M>,
-        qualifier: Gd<Qualifier>,
+        qualifier: &VoxelQualifier,
         contact_threshold: usize,
-    ) -> Result<Self, ()>
+    ) -> Result<Self, BuilderError>
     where
         M: Clone,
     {
         // get map from qualifier
-        let map = &qualifier.bind().evaluated;
+        let map = &qualifier.evaluated;
 
         // The buffers to generate
         let count = analysis.count();
@@ -56,7 +56,10 @@ impl GeneratedBuffers {
                     && contacts > contact_threshold
                 {
                     if count >= MAX_CONNECTIONS {
-                        return Err(());
+                        return Err(BuilderError::TooManyConnections {
+                            max: MAX_CONNECTIONS,
+                            found: count,
+                        });
                     }
 
                     conn[count] = node_in.index() as i32;

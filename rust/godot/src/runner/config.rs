@@ -1,5 +1,8 @@
 use godot::prelude::*;
 
+/// Threshold for evaluating connections between components
+pub const CONTACT_THRESHOLD: usize = 3;
+
 /// Maximum of connections allowed per component
 pub const MAX_CONNECTIONS: usize = 32;
 
@@ -45,10 +48,11 @@ pub const BIND_SAMPLER: Layout = Layout::new(2, 1);
 
 /// Operations defined in the compute shader
 #[repr(C)]
-#[derive(GodotConvert, Var, Export, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(GodotConvert, Var, Export, Clone, Copy, Default, Debug, PartialEq, Eq, Hash)]
 #[godot(via = i32)]
 pub enum CVOperation {
     /// constant value
+    #[default]
     Const = 0,
 
     /// bitwise OR operation

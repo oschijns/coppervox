@@ -14,16 +14,16 @@ use godot::{
     prelude::*,
 };
 use petgraph::matrix_graph::NodeIndex;
-use std::str::FromStr;
 
 /// CopperVox runner for the logic circuit
 #[derive(GodotClass)]
-#[class(base=Node, rename=CVRunner)]
+#[class(init, base=Node, rename=CVRunner)]
 pub struct Runner {
     base: Base<Node>,
 
     /// Path to the compute shader to load
     #[export]
+    #[init(val = "res://process.glsl".into())]
     shader_path: GString,
 
     /// The rendering device this runner uses
@@ -112,6 +112,7 @@ struct Activator {
 }
 
 /// Data related to an activation
+#[derive(Clone)]
 pub struct ActivationData {
     /// The list of components to activate identified by their index
     pub(crate) indexes: Vec<CompIndex>,
@@ -122,30 +123,28 @@ pub struct ActivationData {
 
 #[godot_api]
 impl INode for Runner {
-    fn init(base: Base<Node>) -> Self {
-        Self {
-            base,
-            shader_path: GString::from_str("res://process.glsl").unwrap(),
-            render_device: None,
-            components_count: 0,
-            buffer_size: Buffer::default(),
-            buffer_connections: Buffer::default(),
-            buffer_operations: Buffer::default(),
-            sampler_buffer: SamplerBuffer::default(),
-            compute_data: Compute::default(),
-            activator: Activator::default(),
-        }
-    }
-
     /// Handle input events
     #[inline]
     fn unhandled_input(&mut self, event: Gd<InputEvent>) {
         self.activator.evaluate_inputs(event);
     }
+
+    /// When this node is deleted, delete all storage buffers associated
+    #[inline]
+    fn exit_tree(&mut self) {
+        self.delete();
+    }
 }
 
 #[godot_api]
 impl Runner {
+    /// Access the texture handle
+    #[func]
+    #[inline]
+    pub fn initialize(&mut self) {
+        self.compile_shader();
+    }
+
     /// To be called at a fixed tick rate
     #[func]
     fn on_tick(&mut self) {

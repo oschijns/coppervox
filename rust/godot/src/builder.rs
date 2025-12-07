@@ -5,20 +5,52 @@ mod base;
 mod buffer;
 
 /// Read quads data to generate a mesh usable by Godot
-mod gd_mesher;
+pub mod gd_mesher;
 
-use crate::{CompValue, runner::config::CVOperation};
+use crate::{
+    CompValue,
+    converter::ModelConverter,
+    runner::{
+        Runner,
+        config::{CONTACT_THRESHOLD, CVOperation},
+    },
+};
+use buffer::GeneratedBuffers;
 use coppervox_analyzer::{
     Voxel,
     gridmap::hashbrown::{HashMap, HashSet},
 };
 use godot::{classes::ShaderMaterial, prelude::*};
-use std::str::FromStr;
 
-/// CopperVox runner for the logic circuit
+/// Build the rendering environment
 #[derive(GodotClass)]
-#[class(base=Resource, rename=CVBuilder)]
+#[class(init, base=Node, rename=CVBuilder)]
 pub struct Builder {
+    base: Base<Node>,
+
+    /// Rendering configuration
+    #[export]
+    render_config: Option<Gd<RenderConfig>>,
+
+    /// Qualify voxels
+    #[export]
+    qualifier: Option<Gd<VoxelQualifier>>,
+
+    /// Convert a model made of voxel into a circuit schematic
+    #[export]
+    converter: Option<Gd<ModelConverter>>,
+
+    /// List of instantiated meshes
+    instantiated_meshes: Vec<Rid>,
+
+    /// Raw buffers generated to submit to the GPU
+    buffers: Option<GeneratedBuffers>,
+}
+
+/// Build the rendering environment
+#[derive(GodotClass)]
+#[class(init, base=Resource, rename=CVRenderConfig)]
+pub struct RenderConfig {
     base: Base<Resource>,
 
     /// Material to assign to the components being generated
@@ -27,22 +59,20 @@ pub struct Builder {
 
     /// The material should contain a per instance parameter defining the index of the component to pull from the sampler buffer
     #[export]
+    #[init(val = "instance_index".into())]
     instance_index_shader_parameter: GString,
-
-    /// List of instantiated meshes
-    instantiated_meshes: Vec<Rid>,
 }
 
 /// Given a voxel value, return the operation type for that voxel
 #[derive(GodotClass)]
-#[class(base=Resource, rename=CVQualifier)]
-pub struct Qualifier {
+#[class(init, base=Resource, rename=CVVoxelQualifier)]
+pub struct VoxelQualifier {
     base: Base<Resource>,
 
     /// Define mapping between voxel values and operation
     #[export]
     #[var(set = set_mapping)]
-    mapping: Array<Gd<Mapping>>,
+    mapping: Array<Gd<VoxelMapping>>,
 
     /// Map voxel type to corresponding operation
     evaluated: HashMap<Voxel, ComponentType>,
@@ -72,8 +102,8 @@ pub enum ComponentType {
 
 /// Define data related to a voxel value
 #[derive(GodotClass)]
-#[class(base=Resource, rename=CVMapping)]
-pub struct Mapping {
+#[class(init, base=Resource, rename=CVVoxelMapping)]
+pub struct VoxelMapping {
     base: Base<Resource>,
 
     /// Which voxel type this mapping corresponds to
@@ -93,77 +123,75 @@ pub struct Mapping {
     action: StringName,
 }
 
+#[derive(thiserror::Error, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuilderError {
+    #[error("Missing resource: CVRenderConfig")]
+    MissingRenderConfig,
+
+    #[error("Missing resource: CVVoxelQualifier")]
+    MissingQualifier,
+
+    #[error("Missing resource: CVModelConverter")]
+    MissingConverter,
+
+    #[error("No analysis of the model have been performed yet")]
+    NoAnalysis,
+
+    #[error("Too many connections on a component (maximum: {max}, found {found})")]
+    TooManyConnections { max: usize, found: usize },
+
+    #[error("Missing material in CVRenderConfig")]
+    MissingMaterial,
+}
+
 #[godot_api]
-impl IResource for Builder {
-    fn init(base: Base<Resource>) -> Self {
-        Self {
-            base,
-            material: None,
-            instance_index_shader_parameter: GString::from_str("instance_index").unwrap(),
-            instantiated_meshes: Vec::new(),
-        }
+impl INode for Builder {
+    /// When the node is deleted, remove the generated Mesh instances too
+    #[inline]
+    fn exit_tree(&mut self) {
+        self.delete_meshes();
     }
 }
 
 #[godot_api]
-impl IResource for Qualifier {
-    fn init(base: Base<Resource>) -> Self {
-        Self {
-            base,
-            mapping: Array::new(),
-            evaluated: HashMap::new(),
-            actions: HashSet::new(),
-        }
-    }
-}
-
-#[godot_api]
-impl IResource for Mapping {
-    fn init(base: Base<Resource>) -> Self {
-        Self {
-            base,
-            voxel_type: 0,
-            operation: CVOperation::Const,
-            voxel_value: 0,
-            action: StringName::from_str("").unwrap(),
-        }
-    }
-}
-
-#[godot_api]
-impl Builder {}
-
-#[godot_api]
-impl Qualifier {
+impl Builder {
+    /// Read data from the converter and instantiate meshes
     #[func]
-    fn set_mapping(&mut self, mapping: Array<Gd<Mapping>>) {
-        self.mapping = mapping;
-        for map in self.mapping.iter_shared() {
-            let map = map.bind();
-            let key = map.voxel_type;
-
-            if map.action.is_empty() {
-                if map.operation == CVOperation::Const {
-                    // The component is a constant value
-                    self.evaluated
-                        .insert(key, ComponentType::Constant(map.voxel_value));
-                } else {
-                    // The component represent an operation
-                    self.evaluated
-                        .insert(key, ComponentType::Operation(map.operation));
-                }
-            } else {
-                // The component is activated by an action
-                let action = map.action.clone();
-                self.actions.insert(action.clone());
-                self.evaluated.insert(
-                    key,
-                    ComponentType::Action {
-                        value: map.voxel_value,
-                        action,
-                    },
-                );
+    fn generate(&mut self) -> bool {
+        match self.generate_internals(CONTACT_THRESHOLD) {
+            Ok(()) => true,
+            Err(err) => {
+                godot_error!("Failed to generate circuit: {err}");
+                false
             }
         }
+    }
+
+    /// Feed processed data into the runner
+    #[func]
+    fn feed_to_runner(&mut self, mut runner: Gd<Runner>) -> bool {
+        if let Some(buffers) = &self.buffers {
+            let mut runner = runner.bind_mut();
+
+            // set activators
+            runner.init_activator(buffers.activators.clone());
+
+            // set storage buffers
+            let count = buffers.inputs().len();
+            runner
+                .build(count, buffers.connections(), buffers.operations())
+                .is_ok()
+        } else {
+            false
+        }
+    }
+}
+
+#[godot_api]
+impl VoxelQualifier {
+    #[func]
+    fn set_mapping(&mut self, mapping: Array<Gd<VoxelMapping>>) {
+        self.mapping = mapping;
+        self.update_mapping();
     }
 }

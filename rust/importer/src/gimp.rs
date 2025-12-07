@@ -1,27 +1,24 @@
 use core::f32;
-
 use coppervox_analyzer::{
-    Model, Voxel, block_mesh::ilattice::glam::Vec3, gridmap::ndarray::Array3,
+    Model, Voxel, gridmap::ndarray::Array3,
 };
+use glam::Vec3;
 use xcf::{RgbaPixel, Xcf};
 
 /// Number of values to remap
 const SIZE: usize = 256;
 
 /// Remap values from the XCF file
-pub struct Remapper {
-    /// For each color in the RGB cube, specify the voxel value to return
-    rgb_cube: Array3<Voxel>,
-}
+pub struct Remapper(Array3<Voxel>);
 
 /// Create a default Remapper
 impl Default for Remapper {
     /// Create a default empty remapper
     #[inline]
     fn default() -> Self {
-        Self {
-            rgb_cube: Array3::zeros((SIZE, SIZE, SIZE)),
-        }
+        Self (
+             Array3::zeros((SIZE, SIZE, SIZE)),
+        )
     }
 }
 
@@ -35,10 +32,10 @@ impl Remapper {
             .collect::<Vec<_>>();
 
         // Create a RGB cube to pull values
-        let mut rgb_cube = Array3::<Voxel>::zeros((SIZE, SIZE, SIZE));
+        let mut matrix = Array3::<Voxel>::zeros((SIZE, SIZE, SIZE));
 
         // For each position in the cube try to find the closest value
-        for (index, value) in rgb_cube.indexed_iter_mut() {
+        for (index, value) in matrix.indexed_iter_mut() {
             let pos = idx_to_vec3(index);
             let mut select_voxel = 0 as Voxel;
             let mut select_dist = f32::MAX;
@@ -56,7 +53,7 @@ impl Remapper {
             *value = select_voxel;
         }
 
-        Self { rgb_cube }
+        Self (matrix)
     }
 
     /// Convert Magica Voxel data into a Model to be processed
@@ -83,7 +80,7 @@ impl Remapper {
     #[inline]
     fn convert_voxel(&self, pixel: RgbaPixel) -> Voxel {
         let i = [pixel.r() as usize, pixel.g() as usize, pixel.b() as usize];
-        self.rgb_cube[i]
+        self.0[i]
     }
 }
 

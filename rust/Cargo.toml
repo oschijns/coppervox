@@ -2,10 +2,10 @@
 resolver = "2"
 members = [
     "analyzer",
-    "importer",
+    #"importer", # unused for now
     "godot",
-    "processor_cl",
-    "processor_wgpu"
+    #"processor_cl",   # unused for now
+    #"processor_wgpu", # unused for now
 ]
 
 [workspace.package]

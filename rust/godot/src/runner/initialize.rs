@@ -70,12 +70,14 @@ impl Runner {
     }
 
     /// Delete the storage buffers associated
-    pub fn delete(&mut self, render: Gd<RenderingDevice>) {
-        self.buffer_size.delete(render.clone());
-        self.buffer_connections.delete(render.clone());
-        self.buffer_operations.delete(render.clone());
-        self.sampler_buffer.delete(render.clone());
-        self.compute_data.delete(render);
+    pub fn delete(&mut self) {
+        if let Some(render) = &self.render_device {
+            self.buffer_size.delete(render.clone());
+            self.buffer_connections.delete(render.clone());
+            self.buffer_operations.delete(render.clone());
+            self.sampler_buffer.delete(render.clone());
+            self.compute_data.delete(render.clone());
+        }
     }
 }
 

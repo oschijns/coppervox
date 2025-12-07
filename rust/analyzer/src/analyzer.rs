@@ -19,7 +19,7 @@ mod labeling;
 mod shaping;
 
 /// Convert the shapes into meshes
-mod meshing;
+pub mod meshing;
 
 /// Identify connections between the islands
 mod connecting;

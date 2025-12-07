@@ -8,6 +8,9 @@ mod runner;
 /// Analyze the voxel model and generate a logical representation that can be run by Godot
 mod builder;
 
+/// Convert a Godot's GridMap into a model to be processed
+mod converter;
+
 use godot::prelude::*;
 
 /// Index of a component in the buffer

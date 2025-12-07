@@ -27,8 +27,13 @@ serde = "1.0"
 toml = "0.9"
 serde_json = "1.0"
 
-# Load magica voxel files
+glam = "0.30"
+
+# Magica Voxel
 dot_vox = "5.1"
 
-# Load GIMP files
+# Goxel
+#gox = "0.4"
+
+# GIMP
 xcf = "0.4"
