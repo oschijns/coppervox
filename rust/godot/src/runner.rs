@@ -158,6 +158,13 @@ impl Runner {
         }
     }
 
+    /// Access the texture as a resource
+    #[func]
+    #[inline]
+    pub fn get_texture(&self) -> Gd<RdTextureView> {
+        self.sampler_buffer.view.clone()
+    }
+
     /// Access the texture handle
     #[func]
     #[inline]

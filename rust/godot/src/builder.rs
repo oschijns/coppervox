@@ -114,6 +114,7 @@ pub struct VoxelMapping {
     #[export]
     operation: CVOperation,
 
+    #[export_group(name = "Const fields")]
     /// The voxel value to use for constant type or when activated by an action
     #[export]
     voxel_value: CompValue,
