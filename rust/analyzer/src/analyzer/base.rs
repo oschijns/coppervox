@@ -30,10 +30,7 @@ impl<M> Analysis<M> {
     }
 }
 
-impl<M> Analysis<M>
-where
-    M: Clone,
-{
+impl<M> Analysis<M> {
     /// Labeled model
     #[inline]
     pub fn labeled_model(&self) -> &LabeledModel {

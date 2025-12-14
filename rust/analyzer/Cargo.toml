@@ -18,7 +18,7 @@ gridmap = { git = "https://github.com/oschijns/gridmap.git", branch = "dev" }
 disjoint-hash-set = "1"
 
 # Morphology of a component
-bitvec.workspace = true
+bitvec = "1"
 
 # Generate mesh from voxel model
 block-mesh = "0.2"

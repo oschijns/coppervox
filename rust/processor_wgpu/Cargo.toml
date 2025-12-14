@@ -16,9 +16,6 @@ thiserror.workspace = true
 # Main handler for CopperVox
 coppervox_analyzer = { path = "../analyzer" }
 
-# Convert incidence matrix into storage buffer
-bitvec.workspace = true
-
 # Incidence matrix representing a directed graph
 petgraph.workspace = true
 
