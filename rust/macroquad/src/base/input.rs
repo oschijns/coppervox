@@ -1,6 +1,7 @@
 use macroquad::input::KeyCode;
 use serde::{Deserialize, de::Visitor};
 
+/// Define an input that can be deserialized from a config file
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Input(pub KeyCode);
 

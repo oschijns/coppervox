@@ -245,6 +245,7 @@ dependencies = [
  "coppervox_importer",
  "macroquad",
  "petgraph",
+ "regex",
  "serde",
  "thiserror",
  "toml",

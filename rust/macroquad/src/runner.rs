@@ -7,7 +7,7 @@ pub mod operations;
 /// Render the logic circuit
 pub mod render;
 
-use crate::base::{CompType, Value};
+use crate::base::{Colorize, CompType, Value};
 use macroquad::{
     input::KeyCode,
     math::{Mat4, Vec3},
@@ -35,6 +35,9 @@ pub struct Component {
 
     /// Resolved operation
     operand: Operand,
+
+    /// Define how the component should be colorized
+    colorize: Arc<Colorize>,
 
     /// Transform to position the mesh in the scene
     transform: Mat4,
@@ -73,7 +76,12 @@ impl Runner {
 impl Component {
     /// Create a new component to render
     #[inline]
-    pub fn new(comp_type: CompType, position: Vec3, mesh: Arc<Mesh>) -> Self {
+    pub fn new(
+        comp_type: CompType,
+        colorize: Arc<Colorize>,
+        position: Vec3,
+        mesh: Arc<Mesh>,
+    ) -> Self {
         // If the value of the component is constant, return said value
         let value = if let CompType::Const(value) = comp_type {
             value
@@ -86,6 +94,7 @@ impl Component {
             current_value: value,
             previous_value: value,
             operand: comp_type.into(),
+            colorize,
             transform: Mat4::from_translation(position),
             mesh,
         }
