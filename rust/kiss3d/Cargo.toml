@@ -1,0 +1,23 @@
+[package]
+name = "coppervox_kiss3d"
+description = "CopperVox kiss3d runtime"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+# Provide explicit errors
+thiserror.workspace = true
+
+# Main handler for CopperVox
+coppervox_analyzer = { path = "../analyzer" }
+
+# Incidence matrix representing a directed graph
+petgraph.workspace = true
+
+# Render the scene using Kiss3D
+kiss3d = "0.37"
