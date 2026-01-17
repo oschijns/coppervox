@@ -4,6 +4,7 @@ members = [
     "analyzer",
     "importer",
     "godot",
+    "kiss3d",
     "macroquad",
     #"processor_cl",   # unused for now
     #"processor_wgpu", # unused for now

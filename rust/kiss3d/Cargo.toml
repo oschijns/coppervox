@@ -13,11 +13,27 @@ license.workspace = true
 # Provide explicit errors
 thiserror.workspace = true
 
-# Main handler for CopperVox
+# Import files and convert them into voxel models
+coppervox_importer = { path = "../importer" }
+
+# Analyze voxel model to generate a logic circuit
 coppervox_analyzer = { path = "../analyzer" }
+
+# Read command-line arguments
+clap = { version = "4.5", features = ["derive"] }
+
+# Read config file
+serde = { version = "1.0", features = ["derive"] }
+toml = "0.9"
+regex = "1.12"
 
 # Incidence matrix representing a directed graph
 petgraph.workspace = true
 
 # Render the scene using Kiss3D
-kiss3d = "0.37"
+# [Kiss3D](https://github.com/dimforge/kiss3d/)
+kiss3d = { version = "0.39", features = ["serde"] }
+
+# Pass data to WGSL
+wgpu = "25"
+bytemuck = { version = "1", features = ["derive"] }
