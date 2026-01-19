@@ -35,25 +35,31 @@ impl QuadsReader<Arc<RenderMesh>> for QuadDataReader {
         let vertex_count = count * 4;
 
         // allocate buffers to store the mesh data
+        let mut indices = Vec::<[[u32; 3]; 3]>::with_capacity(count * 2);
         let mut coords = Vec::<Vec3>::with_capacity(vertex_count);
-        let mut normals = Vec::<Vec3>::with_capacity(vertex_count);
         let mut uvs = Vec::<Vec2>::with_capacity(vertex_count);
-        let mut indices = Vec::<[u32; 3]>::with_capacity(count * 2);
+
+        // handle normals separately
+        let mut normals = Vec::<Vec3>::with_capacity(6);
+        for face in config.faces.iter() {
+            let [x, y, z] = face.signed_normal().as_vec3().to_array();
+            normals.push(Vec3::new(x, y, z));
+        }
 
         // iterate over all of the quads to build mesh data
-        for (group, face) in quads.groups.iter().zip(&config.faces) {
-            for (i, quad) in group.iter().enumerate() {
+        for (i, (group, face)) in quads.groups.iter().zip(&config.faces).enumerate() {
+            for (j, quad) in group.iter().enumerate() {
                 // Add the indices to compose the two triangles
-                let [t0, t1, t2, t3, t4, t5] = face.quad_mesh_indices(i as u32 * 4);
-                indices.push([t0, t1, t2]);
-                indices.push([t3, t4, t5]);
+                let n = i as u32;
+                let [i0, i1, i2, i3, i4, i5] = face.quad_mesh_indices(j as u32 * 4);
+                indices.push([[i0, n, i0], [i1, n, i1], [i2, n, i2]]);
+                indices.push([[i3, n, i3], [i4, n, i4], [i5, n, i5]]);
+
+                // A quad is a flat plane, thus it uses four times the same normal
 
                 // store the vertices of the quad
                 for &coord in face.quad_mesh_positions(quad, 1.0).iter() {
                     coords.push(Vec3::from(coord));
-                }
-                for &normal in face.quad_mesh_normals().iter() {
-                    normals.push(Vec3::from(normal));
                 }
                 for &uv in face
                     .tex_coords(config.u_flip_face, self.uv_flip_v, quad)
@@ -69,7 +75,7 @@ impl QuadsReader<Arc<RenderMesh>> for QuadDataReader {
             coords,
             Some(normals),
             Some(uvs),
-            Some(IndexBuffer::Unified(indices)),
+            Some(IndexBuffer::Split(indices)),
         ))
     }
 }
