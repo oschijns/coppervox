@@ -1,5 +1,5 @@
 use super::Loader;
-use crate::loader::mesher::QuadDataReader;
+use crate::{loader::mesher::QuadDataReader, runner::Runner};
 use coppervox_analyzer::{
     Analysis, Mesher, Voxel,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
@@ -24,12 +24,9 @@ pub enum Error {
     NodeIndexMismatch { initial: usize, new: usize },
 }
 
-/// Store data for running a logic circuit simulation
-pub struct Runner {}
-
 impl Loader {
     /// Build a logic circuit from the loaded model data
-    pub fn build(&self) -> Result<Runner, Error> {
+    pub fn build(&self) -> Result<(), Error> {
         // Config for generating meshes from quad data
         const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
         let mut mesher = Mesher::new(QUAD_CONFIG, 0);
@@ -69,6 +66,6 @@ impl Loader {
             for other_index in incidences.neighbors_directed(node_index, Direction::Outgoing) {}
         }
 
-        Ok(Runner {})
+        Ok(())
     }
 }

@@ -1,8 +1,11 @@
 /// Size of workgroups
-pub const WOKGROUP: u32 = 256;
+pub const WORKGROUP: u32 = 256;
 
 /// Maximum number of connections per output
-pub const MAX_CNX: u32 = 16;
+pub const MAX_CNX: u64 = 16;
+
+/// Size of the integer type used in the storage buffers
+pub const INT_SIZE: u64 = 32 / 8;
 
 #[repr(u32)]
 pub enum Op {
