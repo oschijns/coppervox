@@ -1,83 +1,60 @@
-use kiss3d::prelude::*;
-use std::mem;
-use wgpu::{
-    BindGroup, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType,
-    Buffer, BufferBindingType, BufferDescriptor, BufferUsages, ShaderStages,
-};
+/// Generate the storage buffers and appropriate binding groups
+mod alloc_buffer;
 
-use crate::shader_const::{BIND_CONNECTIONS, INT_SIZE, MAX_CNX};
+use wgpu::{BindGroup, BindGroupLayout, Buffer};
+
+/*
+ * As defined in the shader, given N components we have
+ * - four storage buffers:
+ *      + connections : N * MAX_CNX
+ *      + operations  : N
+ *      + buffer A    : N
+ *      + buffer B    : N
+ * - two bind group layouts:
+ *      + constants : connections, operations
+ *      + mutables  : inputs, outputs
+ * - three bind groups:
+ *      + constants : connections, operations
+ *      + A to B
+ *      + B to A
+ *
+ * To optimize sharing data between the CPU and the GPU,
+ * we should organize components into three groups of
+ * components stored contiguously:
+ * - CPU to GPU
+ * - GPU to CPU
+ * - totally handled by the GPU
+ */
 
 /// Store data for running a logic circuit simulation
-pub struct Runner {
-    /// Binding for the connections storage buffer
-    connections: GpuData,
+pub struct Runner {}
 
-    /// Binding for the operations storage buffer
-    operations: GpuData,
-    // Binding for the inputs storage buffer
-    //inputs: GpuData,
+/// Define the layout for submitting the data to the compute shader
+pub struct ComputeLayout {
+    /// Layout for connections and operations
+    layout_const: BindGroupLayout,
 
-    // Binding for the outputs storage buffer
-    //outputs: GpuData,
+    /// Layout for inputs and outputs
+    layout_mut: BindGroupLayout,
 }
 
-/// Define the GPU data
-pub struct GpuData {
-    /// Buffer of data to send to the GPU
-    buffer: Buffer,
+/// Allocate buffer to store the data
+pub struct AllocBuffers {
+    /// Buffer containing the connections data
+    connections: Buffer,
 
-    /// Binding layout
-    layout: BindGroupLayout,
+    /// Buffer containing the operations data
+    operations: Buffer,
 
-    /// Bind group for the storage buffer
-    bind_group: Option<BindGroup>,
+    /// Swapppable buffers for inputs and outputs
+    ping_pong: [Buffer; 2],
 }
 
-impl Runner {
-    pub fn new(ctx: &Context, connections: &[u32], operations: &[u32]) -> Self {
-        Self {
-            connections: GpuData::read_only(ctx, "connections", connections),
-            operations: GpuData::read_only(ctx, "operations", operations),
-        }
-    }
-}
+/// Bind the buffer to the actual shader
+pub struct ComputeBinding {
+    /// Binding for connections and operations
+    bind_const: BindGroup,
 
-impl GpuData {
-    /// Create buffers
-    fn read_only(ctx: &Context, label: &str, data: &[u32]) -> Self {
-        // Allocate a buffer
-        let buffer = ctx.create_buffer(&BufferDescriptor {
-            label: Some(label),
-            size: data.len() as u64 * INT_SIZE,
-            usage: BufferUsages::STORAGE, // | BufferUsages::COPY_SRC | BufferUsages::MAP_READ
-            mapped_at_creation: false,
-        });
-
-        // Write the data to the buffer.
-        // Modern CPU and GPU both works in little endian,
-        // so no need to swap endianness here.
-        ctx.write_buffer(&buffer, 0, bytemuck::cast_slice(data));
-
-        // Create a layout for the buffer
-        let layout = ctx.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: Some(label),
-            entries: &[BindGroupLayoutEntry {
-                binding: BIND_CONNECTIONS.binding,
-                visibility: ShaderStages::COMPUTE, // FRAGMENT
-                ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: true },
-                    has_dynamic_offset: false,
-                    min_binding_size: None,
-                },
-                count: None,
-            }],
-        });
-
-        // Return descriptor for the buffer
-        Self {
-            buffer,
-            layout,
-            bind_group: None,
-        }
-    }
+    /// Swappable bindings for inputs and outputs
+    ping_pong: [BindGroup; 2],
 }
