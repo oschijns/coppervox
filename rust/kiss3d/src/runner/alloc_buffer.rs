@@ -25,13 +25,13 @@ impl ComputeLayout {
 
 impl AllocBuffers {
     /// Allocate buffers and fill them with the provided data
-    pub fn new(ctx: &Context, connections: &[u32], operations: &[u32], init: &[u32]) -> Self {
+    pub fn new(ctx: &Context, connections: &[u32], operations: &[u32], inits: &[u32]) -> Self {
         Self {
             connections: create_const_buffer(ctx, "connections", connections),
             operations: create_const_buffer(ctx, "operations", operations),
             ping_pong: [
-                create_mut_buffer(ctx, "ping", init),
-                create_mut_buffer(ctx, "pong", init),
+                create_mut_buffer(ctx, "ping", inits),
+                create_mut_buffer(ctx, "pong", inits),
             ],
         }
     }

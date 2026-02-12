@@ -120,6 +120,15 @@ impl Loader {
 }
 
 impl CompType {
+    /// Get the start value for the component
+    #[inline]
+    pub fn start_value(&self) -> Value {
+        match self {
+            Self::Const(value) => *value,
+            _ => 0,
+        }
+    }
+
     /// Get the operation value to submit to the GPU
     #[rustfmt::skip]
     pub fn to_op(&self) -> Op {
