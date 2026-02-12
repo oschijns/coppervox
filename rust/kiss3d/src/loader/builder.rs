@@ -1,18 +1,11 @@
 use super::Loader;
-use crate::{
-    loader::{Interface, mesher::QuadDataReader},
-    runner::Runner,
-};
+use crate::loader::{ComponentConfig, Interface, mesher::QuadDataReader};
 use coppervox_analyzer::{
-    Analysis, Mesher, Voxel,
+    Analysis, IslandInfo, Label, Mesher, Voxel,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
 };
-use kiss3d::glamx::Vec3;
-use petgraph::{
-    Direction,
-    graph::{DiGraph, NodeIndex},
-    visit::IntoNodeIdentifiers,
-};
+use kiss3d::procedural::RenderMesh;
+use std::sync::Arc;
 
 /// Error reporting when accessing information
 #[derive(thiserror::Error, Debug, Clone, Copy)]
@@ -27,6 +20,34 @@ pub enum Error {
     NodeIndexMismatch { initial: usize, new: usize },
 }
 
+/// Define an ordering for the components
+struct Ordering {
+    /// Define the order of the components
+    order: Vec<Component>,
+
+    /// Range of the components used as inputs
+    range_inputs: [usize; 2],
+
+    /// Range of the components used as outputs
+    range_outputs: [usize; 2],
+}
+
+/// Group all the relevant data of a component
+#[derive(Clone)]
+struct Component {
+    /// Identifier of the component
+    label: Label,
+
+    /// Corresponding config
+    config: ComponentConfig,
+
+    /// Voxel information
+    info: IslandInfo,
+
+    /// The mesh to render
+    mesh: Arc<RenderMesh>,
+}
+
 impl Loader {
     /// Build a logic circuit from the loaded model data
     pub fn build(&self) -> Result<(), Error> {
@@ -37,54 +58,70 @@ impl Loader {
 
         // Analyse the model
         let analysis = Analysis::build(&self.model, &mut mesher, &mut reader);
+        let order = self.get_order(&analysis)?;
 
+        Ok(())
+    }
+
+    /// Define an ordering for the components.
+    /// This will allow to optimize buffer copies between the CPU and the GPU.
+    fn get_order(&self, analysis: &Analysis<Arc<RenderMesh>>) -> Result<Ordering, Error> {
         // How many component do we have in the simulation?
         let count = analysis.count();
 
-        // Define three groups of components:
-        // - Nones
-        // - Inputs
-        // - Ouputs
+        // We want to organize components into three groups
         let mut group_nones = Vec::with_capacity(count);
         let mut group_inputs = Vec::with_capacity(count);
         let mut group_outputs = Vec::with_capacity(count);
 
-        // Shapes that have been generated
-        let shape_set = analysis.shape_set();
-
-        // Iterate over each entry in the incidence matrix
-        let incidences = analysis.connectivity().incidence_matrix();
-        for node_index in incidences.node_identifiers() {
-            // For the given node, get the associated voxel value
-            let info = analysis.info_from_node_index(node_index)?;
-
+        // Iterate over the components
+        for (&label, &info) in analysis.labeled_model().iter() {
             // Identify the type of the component
-            let voxel = info.voxel_value;
-            let Some(cfg) = self.config.0.get(&voxel) else {
+            let voxel = info.voxel_value();
+            let Some(&config) = self.config.0.get(&voxel) else {
                 return Err(Error::NoConfig(voxel));
             };
 
+            // Get the mesh to render for this component
+            let mesh = analysis.shape_set().get_mesh(label)?;
+
             // Deduce to which group the component should be added
-            let group = match cfg.comp_type.interface() {
+            let group = match config.comp_type.interface() {
                 Interface::None => &mut group_nones,
                 Interface::Input => &mut group_inputs,
-                Interface::Ouput => &mut group_outputs,
+                Interface::Output => &mut group_outputs,
             };
-            group.push(node_index);
 
-            // position of the object
-            let [x, y, z] = info.origin;
-            let position = Vec3::new(x as f32, y as f32, z as f32);
-
-            // Get the mesh to render for this component
-            let mesh = shape_set.get_mesh(info.label)?;
+            // Get most data related to the component
+            group.push(Component {
+                label,
+                config,
+                info,
+                mesh: mesh.clone(),
+            });
         }
 
-        // Add the edges connecting the nodes
-        for node_index in incidences.node_identifiers() {
-            for other_index in incidences.neighbors_directed(node_index, Direction::Outgoing) {}
-        }
+        // We are putting the groups in the following order:
+        // - Inputs
+        // - Outputs
+        // - Internals
 
-        Ok(())
+        // Compute the ranges for the interfaces
+        let count_in = group_inputs.len();
+        let count_out = group_outputs.len();
+        let range_inputs = [0usize, count_in];
+        let range_outputs = [count_in, count_in + count_out];
+
+        // Compute the final list
+        let mut order = group_inputs;
+        order.append(&mut group_outputs);
+        order.append(&mut group_nones);
+
+        // Return the result
+        Ok(Ordering {
+            order,
+            range_inputs,
+            range_outputs,
+        })
     }
 }

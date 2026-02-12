@@ -1,5 +1,5 @@
 use coppervox_analyzer;
-use dot_vox::{DotVoxData, Model, Size};
+use dot_vox::{DotVoxData, Model};
 
 type CVModel = coppervox_analyzer::Model;
 type CVVoxel = coppervox_analyzer::Voxel;

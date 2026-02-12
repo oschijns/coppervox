@@ -1,9 +1,12 @@
 use super::{Analysis, Connectivity, Error, Info, Label, LabeledModel, QuadsReader};
 use crate::{
-    Model,
+    Model, Voxel,
     analyzer::{IslandInfo, ShapeData, ShapeHash, ShapeSet, meshing::Mesher},
 };
-use gridmap::hashbrown::hash_map::{Values, ValuesMut};
+use gridmap::{
+    gridmap::bounding_box::BoundingBox,
+    hashbrown::hash_map::{Iter, Values, ValuesMut},
+};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 impl<M> Analysis<M> {
@@ -94,6 +97,31 @@ impl LabeledModel {
         } else {
             Err(Error::NoIsland)
         }
+    }
+
+    /// Iterate over the islands
+    pub fn iter(&self) -> Iter<'_, Label, IslandInfo> {
+        self.islands.iter()
+    }
+}
+
+impl IslandInfo {
+    /// Get the value of the voxel
+    #[inline]
+    pub fn voxel_value(&self) -> Voxel {
+        self.voxel_value
+    }
+
+    /// Get the voxel count
+    #[inline]
+    pub fn voxel_count(&self) -> usize {
+        self.voxels_count
+    }
+
+    /// Bounding boxes
+    #[inline]
+    pub fn bounding_box(&self) -> &BoundingBox<3> {
+        &self.bounding_box
     }
 }
 

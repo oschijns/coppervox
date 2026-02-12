@@ -184,11 +184,8 @@ impl Compute {
     ) {
         // compute the number of dispatches necessary
         self.dispatches_count = count.div_ceil(WORKGROUP_SIZE) as u32;
-        self.buffer_outputs.build_read_write_storage(
-            render.clone(),
-            count as usize,
-            BIND_OUTPUTS.binding,
-        );
+        self.buffer_outputs
+            .build_read_write_storage(render.clone(), count, BIND_OUTPUTS.binding);
 
         // build uniform lists to pass to the rendering pipeline
         let uniform_list_static = array![uniform_size, uniform_connections, uniform_operations,];

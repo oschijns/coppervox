@@ -48,6 +48,7 @@ pub struct LabeledModel {
 }
 
 /// Define an Island data
+#[derive(Clone, Copy)]
 pub struct IslandInfo {
     /// Initial value of the voxels in the island
     voxel_value: Voxel,

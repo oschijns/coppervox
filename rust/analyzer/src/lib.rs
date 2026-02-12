@@ -22,4 +22,4 @@ pub use gridmap;
 
 // re-export types
 pub use analyzer::meshing::Mesher;
-pub use analyzer::{Analysis, Connectivity, Error, Info, Label, QuadsReader, ShapeSet};
+pub use analyzer::{Analysis, Connectivity, Error, Info, IslandInfo, Label, QuadsReader, ShapeSet};

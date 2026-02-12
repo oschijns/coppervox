@@ -8,7 +8,7 @@ use crate::shader_const::Op;
 use coppervox_analyzer::{Model, Voxel};
 use kiss3d::{color::Color, event::Key};
 use serde::Deserialize;
-use std::{collections::HashMap, default};
+use std::collections::HashMap;
 
 /// Configuration loaded from the input files provided
 pub struct Loader {
@@ -23,7 +23,7 @@ pub struct Loader {
 #[derive(Debug, Deserialize)]
 pub struct Config(HashMap<Voxel, ComponentConfig>);
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 pub struct ComponentConfig {
     /// Define the type of component
     #[serde(rename = "type")]
@@ -84,7 +84,7 @@ pub enum CompType {
 }
 
 /// Define how a component should be colorized
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
 pub struct ColorConfig {
     /// OFF color (0x0)
     off: Color,
@@ -108,7 +108,7 @@ pub enum Interface {
     Input,
 
     /// The component serves as an output
-    Ouput,
+    Output,
 }
 
 impl Loader {
@@ -140,7 +140,7 @@ impl CompType {
     pub fn interface(&self) -> Interface {
         match self {
             Self::InputKey { key: _, value: _ } | Self::InputMask(_) => Interface::Input,
-            Self::Output(_) => Interface::Ouput,
+            Self::Output(_) => Interface::Output,
             _ => Interface::None,
         }
     }

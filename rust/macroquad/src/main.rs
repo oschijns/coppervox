@@ -9,7 +9,6 @@ pub mod loader;
 /// Run the circuit logic
 pub mod runner;
 
-use macroquad::prelude::*;
 use std::path::PathBuf;
 
 /// Command line interface
