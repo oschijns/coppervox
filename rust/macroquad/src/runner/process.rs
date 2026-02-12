@@ -69,9 +69,6 @@ impl Operand {
     /// Specify if this type of operand will read other components' values
     #[inline]
     fn read_others(&self) -> bool {
-        match self {
-            Self::Gate(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Gate(_))
     }
 }

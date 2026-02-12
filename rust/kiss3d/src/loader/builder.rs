@@ -1,5 +1,8 @@
 use super::Loader;
-use crate::{loader::mesher::QuadDataReader, runner::Runner};
+use crate::{
+    loader::{Interface, mesher::QuadDataReader},
+    runner::Runner,
+};
 use coppervox_analyzer::{
     Analysis, Mesher, Voxel,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
@@ -38,6 +41,14 @@ impl Loader {
         // How many component do we have in the simulation?
         let count = analysis.count();
 
+        // Define three groups of components:
+        // - Nones
+        // - Inputs
+        // - Ouputs
+        let mut group_nones = Vec::with_capacity(count);
+        let mut group_inputs = Vec::with_capacity(count);
+        let mut group_outputs = Vec::with_capacity(count);
+
         // Shapes that have been generated
         let shape_set = analysis.shape_set();
 
@@ -52,6 +63,14 @@ impl Loader {
             let Some(cfg) = self.config.0.get(&voxel) else {
                 return Err(Error::NoConfig(voxel));
             };
+
+            // Deduce to which group the component should be added
+            let group = match cfg.comp_type.interface() {
+                Interface::None => &mut group_nones,
+                Interface::Input => &mut group_inputs,
+                Interface::Ouput => &mut group_outputs,
+            };
+            group.push(node_index);
 
             // position of the object
             let [x, y, z] = info.origin;

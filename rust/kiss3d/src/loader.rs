@@ -4,10 +4,11 @@ pub mod builder;
 /// Build mesh from quad data
 pub mod mesher;
 
+use crate::shader_const::Op;
 use coppervox_analyzer::{Model, Voxel};
 use kiss3d::{color::Color, event::Key};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::{collections::HashMap, default};
 
 /// Configuration loaded from the input files provided
 pub struct Loader {
@@ -29,6 +30,7 @@ pub struct ComponentConfig {
     comp_type: CompType,
 
     /// Colors of the component
+    #[serde(flatten)]
     color: ColorConfig,
 }
 
@@ -42,31 +44,43 @@ pub enum CompType {
     Const(Value) = 0,
 
     /// bitwise OR operation
-    Or = 1,
+    Or,
 
     /// bitwise AND operation
-    And = 2,
+    And,
 
     /// bitwise NOR operation
-    Nor = 3,
+    Nor,
 
     /// bitwise NAND operation
-    Nand = 4,
+    Nand,
 
     /// arithmetic addition
-    Add = 5,
+    Add,
 
     /// arithmetic multiplication
-    Mul = 6,
+    Mul,
 
     /// Minimum
-    Min = 7,
+    Min,
 
     /// Maximum
-    Max = 8,
+    Max,
 
-    /// Input value
-    Input { input: Key, value: Value },
+    /// Map a key press to a single output value
+    InputKey {
+        /// The key to track
+        key: Key,
+
+        /// The value to output
+        value: u32,
+    },
+
+    /// Map a list of keys to a mask
+    InputMask([Option<Key>; 32]),
+
+    /// The component output a value
+    Output(u8),
 }
 
 /// Define how a component should be colorized
@@ -82,10 +96,52 @@ pub struct ColorConfig {
     on_high: Color,
 }
 
+/// Define if a component serves as an interface to the outside world
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Interface {
+    /// The component does not interface with the outside world
+    #[default]
+    None = 0,
+
+    /// The component serves as an input
+    Input,
+
+    /// The component serves as an output
+    Ouput,
+}
+
 impl Loader {
     /// Create a new config
     #[inline]
     pub fn new(model: Model, config: Config) -> Self {
         Self { model, config }
+    }
+}
+
+impl CompType {
+    /// Get the operation value to submit to the GPU
+    #[rustfmt::skip]
+    pub fn to_op(&self) -> Op {
+        match self {
+            Self::Or   => Op::Or,
+            Self::And  => Op::And,
+            Self::Nor  => Op::Nor,
+            Self::Nand => Op::Nand,
+            Self::Add  => Op::Add,
+            Self::Mul  => Op::Mul,
+            Self::Min  => Op::Min,
+            Self::Max  => Op::Max,
+            _ => Op::None,
+        }
+    }
+
+    /// Determine if the component serves as an interface
+    pub fn interface(&self) -> Interface {
+        match self {
+            Self::InputKey { key: _, value: _ } | Self::InputMask(_) => Interface::Input,
+            Self::Output(_) => Interface::Ouput,
+            _ => Interface::None,
+        }
     }
 }

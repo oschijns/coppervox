@@ -34,7 +34,7 @@ impl Builder {
         )?);
 
         // Assign the material to the meshes
-        let _ = render_config.assign_material_to_meshes(analysis.shape_set())?;
+        render_config.assign_material_to_meshes(analysis.shape_set())?;
 
         // allocate space for the instantiated meshes
         let incidence = analysis.connectivity().incidence_matrix();

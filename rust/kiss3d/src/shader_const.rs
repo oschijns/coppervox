@@ -8,7 +8,12 @@ pub const MAX_CNX: u64 = 16;
 pub const INT_SIZE: u64 = 32 / 8;
 
 #[repr(u32)]
+#[derive(Debug, Default)]
 pub enum Op {
+    /// Non operation
+    #[default]
+    None = 0,
+
     /// Bitwise OR operation
     Or = 1 << 24,
 
