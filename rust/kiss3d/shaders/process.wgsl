@@ -42,7 +42,7 @@ var<storage, read_write> outputs: array<u32>;
 // Process OR operation
 fn op_or(offset: u32, count: u32) -> u32 {
     var result: u32 = 0u;
-    for (var i = 0u; i < max(count, MAX_CNX); i++) {
+    for (var i = 0u; i < min(count, MAX_CNX); i++) {
         result |= inputs[connections[offset + i]];
     }
     return result;
@@ -51,7 +51,7 @@ fn op_or(offset: u32, count: u32) -> u32 {
 // Process OR operation
 fn op_and(offset: u32, count: u32) -> u32 {
     var result: u32 = ~0u;
-    for (var i = 0u; i < max(count, MAX_CNX); i++) {
+    for (var i = 0u; i < min(count, MAX_CNX); i++) {
         result &= inputs[connections[offset + i]];
     }
     return result;
@@ -60,7 +60,7 @@ fn op_and(offset: u32, count: u32) -> u32 {
 // Process OR operation
 fn op_add(offset: u32, count: u32) -> u32 {
     var result: u32 = 0u;
-    for (var i = 0u; i < max(count, MAX_CNX); i++) {
+    for (var i = 0u; i < min(count, MAX_CNX); i++) {
         result += inputs[connections[offset + i]];
     }
     return result;
@@ -69,7 +69,7 @@ fn op_add(offset: u32, count: u32) -> u32 {
 // Process OR operation
 fn op_mul(offset: u32, count: u32) -> u32 {
     var result: u32 = 1u;
-    for (var i = 0u; i < max(count, MAX_CNX); i++) {
+    for (var i = 0u; i < min(count, MAX_CNX); i++) {
         result *= inputs[connections[offset + i]];
     }
     return result;
@@ -78,7 +78,7 @@ fn op_mul(offset: u32, count: u32) -> u32 {
 // Process OR operation
 fn op_min(offset: u32, count: u32) -> u32 {
     var result: u32 = ~0u;
-    for (var i = 0u; i < max(count, MAX_CNX); i++) {
+    for (var i = 0u; i < min(count, MAX_CNX); i++) {
         result = min(result, inputs[connections[offset + i]]);
     }
     return result;
@@ -87,7 +87,7 @@ fn op_min(offset: u32, count: u32) -> u32 {
 // Process OR operation
 fn op_max(offset: u32, count: u32) -> u32 {
     var result: u32 = 0u;
-    for (var i = 0u; i < max(count, MAX_CNX); i++) {
+    for (var i = 0u; i < min(count, MAX_CNX); i++) {
         result = max(result, inputs[connections[offset + i]]);
     }
     return result;

@@ -1,5 +1,18 @@
 // Render the components in the scene
 
+
+/*
+ * Structures are expected to be aligned over 16-bytes
+ * which correspond to a `vec4<u32>`.
+ */
+
+// Per-object data structure
+struct ComponentData {
+    transform  : mat4x4<f32>,
+    type_index : u32,
+    _padding   : vec3<u32>,
+}
+
 // Define the data related to a component
 struct ColorsUniform {
     off  : vec4<f32>,
@@ -11,17 +24,13 @@ struct ColorsUniform {
 @group(0) @binding(0)
 var<uniform> projection: mat4x4<f32>;
 
-/// Index of the value to pull from the storage buffer
+/// Storage buffer containing all object instances
 @group(1) @binding(0)
-var<uniform> index: u32;
+var<storage, read> components: array<ComponentData>;
 
 // The three colors to use for lighting up the component upon activation
 @group(1) @binding(1)
-var<uniform> colors: ColorsUniform;
-
-/// Transform of the mesh in the scene
-@group(1) @binding(2)
-var<uniform> transform: mat4x4<f32>;
+var<storage, read> colors: array<ColorsUniform>;
 
 // Processed values from the compute shader
 @group(2) @binding(0)
@@ -37,7 +46,6 @@ const RANGE = f32(MAX);
 struct ToVertex {
     @location(0) position : vec3<f32>,
     @location(1) normal   : vec3<f32>,
-    @location(2) index    : u32,
 }
 
 // Vertex output / Fragment input
@@ -49,23 +57,30 @@ struct ToFragment {
 
 // Process the vertices of the mesh
 @vertex
-fn vertex_main(vertex: ToVertex) -> ToFragment {
+fn vertex_main(
+    vertex: ToVertex,
+    @builtin(instance_index) instance_id: u32
+) -> ToFragment {
     var out: ToFragment;
 
+    // Get per-instance data
+    let comp = components[instance_id];
+
     // Position the vertex relative to the camera
-    let trs = projection * transform;
+    let trs = projection * comp.transform;
     out.position = trs * vec4<f32>(vertex.position, 1.0);
     out.normal   = trs * vec4<f32>(vertex.normal  , 0.0);
 
     // Get the value of the component to deduce its color
-    let value = processed[index];
+    let value = processed[instance_id];
+    let color = colors[comp.type_index];
     switch value {
-        case 0u  : { out.color = colors.off;  }
-        case 1u  : { out.color = colors.low;  }
-        case MAX : { out.color = colors.high; }
+        case 0u  : { out.color = color.off;  }
+        case 1u  : { out.color = color.low;  }
+        case MAX : { out.color = color.high; }
         default: {
             let t = f32(value) / RANGE;
-            out.color = smoothstep(colors.low, colors.high, vec4<f32>(t, t, t, t));
+            out.color = smoothstep(color.low, color.high, vec4<f32>(t, t, t, t));
         }
     }
 
