@@ -14,7 +14,7 @@ struct ComponentData {
 }
 
 // Define the data related to a component
-struct ColorsUniform {
+struct Colors {
     off  : vec4<f32>,
     low  : vec4<f32>,
     high : vec4<f32>,
@@ -30,16 +30,11 @@ var<storage, read> components: array<ComponentData>;
 
 // The three colors to use for lighting up the component upon activation
 @group(1) @binding(1)
-var<storage, read> colors: array<ColorsUniform>;
+var<storage, read> colors: array<Colors>;
 
 // Processed values from the compute shader
 @group(2) @binding(0)
 var<storage, read> processed: array<u32>;
-
-
-// Maximum value possible in a component
-const MAX   = ~0u;
-const RANGE = f32(MAX);
 
 
 // Vertex input
@@ -71,6 +66,9 @@ fn vertex_main(
     out.position = trs * vec4<f32>(vertex.position, 1.0);
     out.normal   = trs * vec4<f32>(vertex.normal  , 0.0);
 
+    // Maximum possible value for a component
+    const MAX: u32 = ~0u;
+
     // Get the value of the component to deduce its color
     let value = processed[instance_id];
     let color = colors[comp.type_index];
@@ -79,7 +77,7 @@ fn vertex_main(
         case 1u  : { out.color = color.low;  }
         case MAX : { out.color = color.high; }
         default: {
-            let t = f32(value) / RANGE;
+            let t = f32(value) / f32(MAX);
             out.color = smoothstep(color.low, color.high, vec4<f32>(t, t, t, t));
         }
     }

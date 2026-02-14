@@ -1,16 +1,9 @@
-/*
- * Since modern CPU and GPU both works in little endian,
- * we do not need to swap endianness when submitting buffers to the CPU.
- * Either way Vulkan require CPU and GPU to share the same endianness.
- */
-
 use super::*;
-use crate::shader_const::{BIND_CONNECTIONS, BIND_INPUTS, BIND_OPERATIONS, BIND_OUTPUTS, INT_SIZE};
+use crate::shader_const::{BIND_CONNECTIONS, BIND_INPUTS, BIND_OPERATIONS, BIND_OUTPUTS};
 use kiss3d::prelude::*;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, BufferDescriptor, BufferUsages,
-    ShaderStages,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages,
 };
 
 impl ComputeLayout {
@@ -19,20 +12,6 @@ impl ComputeLayout {
         Self {
             layout_const: create_const_layout(ctx),
             layout_mut: create_mut_layout(ctx),
-        }
-    }
-}
-
-impl AllocBuffers {
-    /// Allocate buffers and fill them with the provided data
-    pub fn new(ctx: &Context, connections: &[u32], operations: &[u32], inits: &[u32]) -> Self {
-        Self {
-            connections: create_const_buffer(ctx, "connections", connections),
-            operations: create_const_buffer(ctx, "operations", operations),
-            ping_pong: [
-                create_mut_buffer(ctx, "ping", inits),
-                create_mut_buffer(ctx, "pong", inits),
-            ],
         }
     }
 }
@@ -112,39 +91,6 @@ fn create_mut_layout(ctx: &Context) -> BindGroupLayout {
             },
         ],
     })
-}
-
-/// Create a constant buffer
-fn create_const_buffer(ctx: &Context, label: &str, data: &[u32]) -> Buffer {
-    // Create a new buffer
-    let buffer = ctx.create_buffer(&BufferDescriptor {
-        label: Some(label),
-        size: data.len() as u64 * INT_SIZE,
-        usage: BufferUsages::STORAGE,
-        mapped_at_creation: false,
-    });
-
-    // Write the data to the buffer.
-    ctx.write_buffer(&buffer, 0, bytemuck::cast_slice(data));
-
-    buffer
-}
-
-/// Create a mutable buffer
-/// We still need to provide initial data
-fn create_mut_buffer(ctx: &Context, label: &str, data: &[u32]) -> Buffer {
-    // Create a new buffer
-    let buffer = ctx.create_buffer(&BufferDescriptor {
-        label: Some(label),
-        size: data.len() as u64 * INT_SIZE,
-        usage: BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST,
-        mapped_at_creation: false,
-    });
-
-    // Write initial the data to the buffer.
-    ctx.write_buffer(&buffer, 0, bytemuck::cast_slice(data));
-
-    buffer
 }
 
 /// Create a bind group for the constant storage buffers

@@ -1,5 +1,11 @@
-/// Generate the storage buffers and appropriate binding groups
-mod alloc_buffer;
+/// Allocate the buffers for the compute and the render passes
+mod alloc_buffers;
+
+/// Generate the storage buffers and appropriate binding groups for compute pass
+mod bind_compute;
+
+/// Generate the storage buffers and appropriate binding groups for render pass
+mod bind_render;
 
 use wgpu::{BindGroup, BindGroupLayout, Buffer};
 
@@ -29,15 +35,6 @@ use wgpu::{BindGroup, BindGroupLayout, Buffer};
 /// Store data for running a logic circuit simulation
 pub struct Runner {}
 
-/// Define the layout for submitting the data to the compute shader
-pub struct ComputeLayout {
-    /// Layout for connections and operations
-    layout_const: BindGroupLayout,
-
-    /// Layout for inputs and outputs
-    layout_mut: BindGroupLayout,
-}
-
 /// Allocate buffer to store the data
 pub struct AllocBuffers {
     /// Buffer containing the connections data
@@ -46,8 +43,23 @@ pub struct AllocBuffers {
     /// Buffer containing the operations data
     operations: Buffer,
 
+    /// Buffer containing the components rendering data
+    components: Buffer,
+
+    /// Buffer containing the color definitions
+    colors: Buffer,
+
     /// Swapppable buffers for inputs and outputs
     ping_pong: [Buffer; 2],
+}
+
+/// Define the layout for submitting the data to the compute shader
+pub struct ComputeLayout {
+    /// Layout for connections and operations
+    layout_const: BindGroupLayout,
+
+    /// Layout for inputs and outputs
+    layout_mut: BindGroupLayout,
 }
 
 /// Bind the buffer to the actual shader
