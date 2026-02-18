@@ -1,0 +1,15 @@
+[package]
+name = "coppervox_common"
+description = "CopperVox common data types"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+# Define a model made of voxels
+gridmap = { git = "https://github.com/oschijns/gridmap.git", branch = "dev" }

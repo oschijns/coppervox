@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/common",
+    "crates/importer",
+    "crates/analyzer",
+    "crates/runner",
+    "crates/main",
+]
+
+[workspace.package]
+authors = ["Olivier SCHYNS <https://github.com/oschijns>"]
+homepage = "https://worldline.com/"
+repository = "https://github.com/oschijns/coppervox"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+
+# Provide explicit errors
+thiserror = "2.0"
