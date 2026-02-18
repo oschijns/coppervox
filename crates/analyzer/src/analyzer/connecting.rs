@@ -1,5 +1,5 @@
 use super::{Connectivity, Label, LabeledModel};
-use gridmap::hashbrown::HashMap;
+use coppervox_common::gridmap::hashbrown::HashMap;
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 use std::cmp::max;
 

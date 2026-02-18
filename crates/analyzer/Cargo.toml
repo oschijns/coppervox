@@ -11,8 +11,8 @@ license.workspace = true
 [dependencies]
 thiserror.workspace = true
 
-# Define a model made of voxels
-gridmap = { git = "https://github.com/oschijns/gridmap.git", branch = "dev" }
+# Common data structures
+coppervox_common = { path = "../common" }
 
 # Regroup labels to identify islands
 disjoint-hash-set = "1"

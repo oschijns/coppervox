@@ -18,7 +18,7 @@ pub use gridmap::Index;
 
 // re-export crates
 pub use block_mesh;
-pub use gridmap;
+pub use coppervox_common::gridmap;
 pub use petgraph;
 
 // re-export types

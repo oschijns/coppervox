@@ -1,8 +1,7 @@
-use crate::Label;
-
 use super::{LabeledModel, ShapeData, ShapeHash, ShapeSet};
+use crate::Label;
 use bitvec::{bitvec, order::Lsb0};
-use gridmap::hashbrown::HashMap;
+use coppervox_common::gridmap::hashbrown::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 impl<M> ShapeSet<M> {

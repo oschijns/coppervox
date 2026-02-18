@@ -29,7 +29,7 @@ mod connecting;
 use crate::Voxel;
 use bitvec::{order::Lsb0, vec::BitVec};
 use block_mesh::{QuadBuffer, QuadCoordinateConfig};
-use gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
+use coppervox_common::gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 /// Type used for labeling islands

@@ -3,7 +3,7 @@ use crate::{
     Model, Voxel,
     analyzer::{IslandInfo, ShapeData, ShapeHash, ShapeSet, meshing::Mesher},
 };
-use gridmap::{
+use coppervox_common::gridmap::{
     gridmap::bounding_box::BoundingBox,
     hashbrown::hash_map::{Iter, Values, ValuesMut},
 };
