@@ -90,9 +90,11 @@ pub struct ColorConfig {
     off: Color,
 
     /// ON low power color (0x1)
+    #[serde(rename = "low")]
     on_low: Color,
 
     /// ON high power color (0xFFFF)
+    #[serde(rename = "high")]
     on_high: Color,
 }
 
