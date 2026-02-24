@@ -13,9 +13,11 @@ license.workspace = true
 # Provide explicit errors
 thiserror.workspace = true
 
+# Load a configuration from a text file
+coppervox_importer = { path = "../importer" }
+
 # Analyze voxel model to generate a logic circuit
 coppervox_analyzer = { path = "../analyzer" }
-
 
 # Read config file
 serde = { version = "1.0", features = ["derive"] }

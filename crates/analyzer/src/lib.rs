@@ -1,7 +1,3 @@
-//!
-//!
-//!
-
 /// Analyze the voxel data to deduce components and connections between them
 mod analyzer;
 

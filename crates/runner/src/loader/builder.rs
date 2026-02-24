@@ -1,13 +1,14 @@
 use super::Loader;
 use crate::{
-    loader::{ComponentConfig, Interface, mesher::QuadDataReader},
-    shader_const::MAX_CNX,
+    loader::{Interface, mesher::QuadDataReader, start_value},
+    shader_const::{MAX_CNX, Op},
 };
 use coppervox_analyzer::{
     Analysis, IslandInfo, Label, Mesher, Voxel,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
     petgraph::{Direction, matrix_graph::NodeIndex, visit::IntoNodeIdentifiers},
 };
+use coppervox_importer::config::CompDef;
 use kiss3d::procedural::RenderMesh;
 use std::sync::Arc;
 
@@ -50,7 +51,7 @@ struct Component {
     label: Label,
 
     /// Corresponding config
-    config: ComponentConfig,
+    definition: CompDef,
 
     /// Voxel information
     info: IslandInfo,
@@ -119,9 +120,9 @@ impl Loader {
             }
 
             // Get the rest of the informations for this component
-            let comp = &order.order[index1].config.comp_type;
-            operations[index1] = comp.to_op() as u32 | counter as u32;
-            inits[index1] = comp.start_value();
+            let comp = &order.order[index1].definition.comp_type;
+            operations[index1] = Op::from_type(comp) as u32 | counter as u32;
+            inits[index1] = start_value(comp);
         }
 
         Ok(Buffers {
@@ -153,7 +154,7 @@ impl Loader {
         for (i, (&label, &info)) in analysis.labeled_model().iter().enumerate() {
             // Identify the type of the component
             let voxel = info.voxel_value();
-            let Some(&config) = self.config.0.get(&voxel) else {
+            let Some(&def) = self.config.0.get(&voxel) else {
                 return Err(Error::NoConfig(voxel));
             };
 
@@ -164,7 +165,7 @@ impl Loader {
             indexes[node_index.index()] = i;
 
             // Deduce to which group the component should be added
-            let group = match config.comp_type.interface() {
+            let group = match Interface::from_type(&def.comp_type) {
                 Interface::None => &mut group_nones,
                 Interface::Input => &mut group_inputs,
                 Interface::Output => &mut group_outputs,
@@ -173,7 +174,7 @@ impl Loader {
             // Get most data related to the component
             group.push(Box::new(Component {
                 label,
-                config,
+                definition: def,
                 info,
                 node_index,
                 mesh: mesh.clone(),

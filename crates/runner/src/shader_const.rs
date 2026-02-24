@@ -7,6 +7,12 @@ pub const MAX_CNX: u64 = 16;
 /// Size of the integer type used in the storage buffers
 pub const INT_SIZE: u64 = 32 / 8;
 
+/// Values transmitted over components are 32-bits
+pub type Value = u32;
+
+/// Values transmitted over components are 32-bits
+pub const VALUE_SIZE: usize = 32;
+
 #[repr(u32)]
 #[derive(Debug, Default)]
 pub enum Op {

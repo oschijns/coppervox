@@ -16,6 +16,12 @@ thiserror.workspace = true
 # Main handler for CopperVox
 coppervox_analyzer = { path = "../analyzer" }
 
+# Load a config containing Kiss3D data structures
+kiss3d.workspace = true
+
+# Read config file
+serde = { version = "1.0", features = ["derive"] }
+regex = "1.12"
 
 #
 glam = "0.30"

@@ -1,3 +1,6 @@
+/// Load text based config file
+pub mod config;
+
 /// Load Magica Voxel files
 mod magica;
 
