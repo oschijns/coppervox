@@ -1,11 +1,11 @@
 use super::{Analysis, Connectivity, Error, Info, Label, LabeledModel, QuadsReader};
-use crate::{
+use crate::analyzer::{IslandInfo, ShapeData, ShapeHash, ShapeSet, meshing::Mesher};
+use coppervox_common::{
     Model, Voxel,
-    analyzer::{IslandInfo, ShapeData, ShapeHash, ShapeSet, meshing::Mesher},
-};
-use coppervox_common::gridmap::{
-    gridmap::bounding_box::BoundingBox,
-    hashbrown::hash_map::{Iter, Values, ValuesMut},
+    gridmap::{
+        gridmap::bounding_box::BoundingBox,
+        hashbrown::hash_map::{Iter, Values, ValuesMut},
+    },
 };
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 

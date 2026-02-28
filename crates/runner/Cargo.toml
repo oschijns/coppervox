@@ -13,8 +13,11 @@ license.workspace = true
 # Provide explicit errors
 thiserror.workspace = true
 
+# Common data types
+coppervox_common = { path = "../common" }
+
 # Load a configuration from a text file
-coppervox_importer = { path = "../importer" }
+coppervox_config = { path = "../config" }
 
 # Analyze voxel model to generate a logic circuit
 coppervox_analyzer = { path = "../analyzer" }

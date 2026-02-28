@@ -1,14 +1,15 @@
 use super::Loader;
 use crate::{
-    loader::{Interface, mesher::QuadDataReader, start_value},
+    loader::mesher::QuadDataReader,
     shader_const::{MAX_CNX, Op},
 };
 use coppervox_analyzer::{
-    Analysis, IslandInfo, Label, Mesher, Voxel,
+    Analysis, IslandInfo, Label, Mesher,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
     petgraph::{Direction, matrix_graph::NodeIndex, visit::IntoNodeIdentifiers},
 };
-use coppervox_importer::config::CompDef;
+use coppervox_common::Voxel;
+use coppervox_config::component::{CompDef, Interface};
 use kiss3d::procedural::RenderMesh;
 use std::sync::Arc;
 
@@ -122,7 +123,7 @@ impl Loader {
             // Get the rest of the informations for this component
             let comp = &order.order[index1].definition.comp_type;
             operations[index1] = Op::from_type(comp) as u32 | counter as u32;
-            inits[index1] = start_value(comp);
+            inits[index1] = comp.start_value();
         }
 
         Ok(Buffers {
@@ -165,7 +166,7 @@ impl Loader {
             indexes[node_index.index()] = i;
 
             // Deduce to which group the component should be added
-            let group = match Interface::from_type(&def.comp_type) {
+            let group = match def.comp_type.interface() {
                 Interface::None => &mut group_nones,
                 Interface::Input => &mut group_inputs,
                 Interface::Output => &mut group_outputs,

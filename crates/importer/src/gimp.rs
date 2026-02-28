@@ -1,7 +1,5 @@
+use coppervox_common::{Model, Voxel, gridmap::ndarray::Array3};
 use core::f32;
-use coppervox_analyzer::{
-    Model, Voxel, gridmap::ndarray::Array3,
-};
 use glam::Vec3;
 use xcf::{RgbaPixel, Xcf};
 
@@ -16,9 +14,7 @@ impl Default for Remapper {
     /// Create a default empty remapper
     #[inline]
     fn default() -> Self {
-        Self (
-             Array3::zeros((SIZE, SIZE, SIZE)),
-        )
+        Self(Array3::zeros((SIZE, SIZE, SIZE)))
     }
 }
 
@@ -53,7 +49,7 @@ impl Remapper {
             *value = select_voxel;
         }
 
-        Self (matrix)
+        Self(matrix)
     }
 
     /// Convert Magica Voxel data into a Model to be processed

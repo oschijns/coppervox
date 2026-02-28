@@ -1,0 +1,24 @@
+[package]
+name = "coppervox_config"
+description = "CopperVox define format of companion text files"
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+
+# Provide explicit errors
+thiserror.workspace = true
+
+# Common types for coppervox modules
+coppervox_common = { path = "../common" }
+
+# Load a config containing Kiss3D data structures
+kiss3d.workspace = true
+
+# Read config file
+serde = { version = "1.0", features = ["derive"] }
+regex = "1.12"

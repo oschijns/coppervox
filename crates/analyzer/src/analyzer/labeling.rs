@@ -1,6 +1,8 @@
 use super::{IslandInfo, Label, LabeledModel};
-use crate::{Model, Voxel};
-use coppervox_common::gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
+use coppervox_common::{
+    Model, Voxel,
+    gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap},
+};
 use disjoint_hash_set::DisjointHashSet;
 use std::cmp::min;
 

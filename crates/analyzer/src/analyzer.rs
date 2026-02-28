@@ -26,10 +26,12 @@ mod connecting;
 
 /// Iterator for reading results
 //pub mod iterator;
-use crate::Voxel;
 use bitvec::{order::Lsb0, vec::BitVec};
 use block_mesh::{QuadBuffer, QuadCoordinateConfig};
-use coppervox_common::gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap};
+use coppervox_common::{
+    Voxel,
+    gridmap::{GridMap, gridmap::bounding_box::BoundingBox, hashbrown::HashMap},
+};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 /// Type used for labeling islands

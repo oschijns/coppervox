@@ -1,74 +1,7 @@
-use coppervox_analyzer::Voxel;
-use kiss3d::{color::Color, event::Key};
+use kiss3d::color::Color;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, de};
-use std::{collections::HashMap, num::ParseIntError, sync::LazyLock};
-
-/// Configuration loaded from a text file such as TOML
-#[derive(Debug, Deserialize)]
-pub struct Config(pub HashMap<Voxel, CompDef>);
-
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-pub struct CompDef {
-    /// Define the type of component
-    #[serde(rename = "type")]
-    pub comp_type: CompType,
-
-    /// Colors of the component
-    pub color_set: ColorSet,
-}
-
-/// Values transmitted over components are 32-bits
-pub type Value = u32;
-
-/// Values transmitted over components are 32-bits
-pub const VALUE_SIZE: usize = 32;
-
-#[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
-pub enum CompType {
-    /// constant value
-    Const(Value) = 0,
-
-    /// bitwise OR operation
-    Or,
-
-    /// bitwise AND operation
-    And,
-
-    /// bitwise NOR operation
-    Nor,
-
-    /// bitwise NAND operation
-    Nand,
-
-    /// arithmetic addition
-    Add,
-
-    /// arithmetic multiplication
-    Mul,
-
-    /// Minimum
-    Min,
-
-    /// Maximum
-    Max,
-
-    /// Map a key press to a single output value
-    InputKey {
-        /// The key to track
-        key: Key,
-
-        /// The value to output
-        value: Value,
-    },
-
-    /// Map a list of keys to a mask
-    InputMask([Option<Key>; VALUE_SIZE]),
-
-    /// The component output a value
-    Output(u8),
-}
+use std::{num::ParseIntError, sync::LazyLock};
 
 /// Define how a component should be colorized
 #[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]

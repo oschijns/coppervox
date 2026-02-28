@@ -13,8 +13,8 @@ license.workspace = true
 # Provide explicit errors
 thiserror.workspace = true
 
-# Main handler for CopperVox
-coppervox_analyzer = { path = "../analyzer" }
+# Main data types for CopperVox
+coppervox_common = { path = "../common" }
 
 # Load a config containing Kiss3D data structures
 kiss3d.workspace = true
