@@ -4,7 +4,7 @@ pub mod builder;
 /// Build mesh from quad data
 pub mod mesher;
 
-use crate::shader_const::{Op, Value};
+use crate::shader_const::Op;
 use coppervox_common::Model;
 use coppervox_config::{Config, component::CompType};
 

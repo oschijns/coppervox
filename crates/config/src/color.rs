@@ -1,4 +1,4 @@
-use kiss3d::color::Color;
+use kiss3d::color::Rgba;
 use regex::Regex;
 use serde::{Deserialize, Deserializer, de};
 use std::{num::ParseIntError, sync::LazyLock};
@@ -8,15 +8,15 @@ use std::{num::ParseIntError, sync::LazyLock};
 pub struct ColorSet {
     /// OFF color (0x0)
     #[serde(deserialize_with = "deserialize_color")]
-    off: Color,
+    pub off: Rgba<u8>,
 
     /// ON low power color (0x1)
     #[serde(deserialize_with = "deserialize_color", rename = "low")]
-    on_low: Color,
+    pub on_low: Rgba<u8>,
 
     /// ON high power color (0xFFFF)
     #[serde(deserialize_with = "deserialize_color", rename = "high")]
-    on_high: Color,
+    pub on_high: Rgba<u8>,
 }
 
 /// Error encountered when reading color data from the configuration
@@ -32,7 +32,7 @@ pub enum ColorError {
 }
 
 /// Thin wrapper around `color_from_hex` function
-fn deserialize_color<'de, D>(deserializer: D) -> Result<Color, D::Error>
+fn deserialize_color<'de, D>(deserializer: D) -> Result<Rgba<u8>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -45,7 +45,7 @@ static COLOR_HEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^#([0-9A-Fa-f]{2}){3,4}$").unwrap());
 
 /// Try to identify a color from an hexadecimal string
-fn color_from_hex(hex: &str) -> Result<Color, ColorError> {
+fn color_from_hex(hex: &str) -> Result<Rgba<u8>, ColorError> {
     if COLOR_HEX.is_match(hex) {
         // trim the first '#'
         let mut hex = hex[1..].to_string();
@@ -60,23 +60,8 @@ fn color_from_hex(hex: &str) -> Result<Color, ColorError> {
         let [r, g, b, a] = u32::from_str_radix(&hex, 16)?.to_be_bytes();
 
         // Convert the bytes into floats
-        Ok(Color::new(
-            convert_channel(r),
-            convert_channel(g),
-            convert_channel(b),
-            convert_channel(a),
-        ))
+        Ok(Rgba::new(r, g, b, a))
     } else {
         Err(ColorError::UnexpectedPattern(hex.to_string()))
     }
-}
-
-/// Convert a RGBA byte into a RGBA float
-#[inline]
-fn convert_channel(byte: u8) -> f32 {
-    // remap values in the range [0, 255] to values in the range [0.0, 1.0]
-    const F: f32 = 1.0 / u8::MAX as f32;
-
-    // Convert the byte
-    (byte as f32) * F
 }

@@ -37,14 +37,17 @@ pub struct Runner {}
 
 /// Allocate buffer to store the data
 pub struct AllocBuffers {
+    /// Projection
+    projection: Buffer,
+
     /// Buffer containing the connections data
     connections: Buffer,
 
     /// Buffer containing the operations data
     operations: Buffer,
 
-    /// Buffer containing the components rendering data
-    components: Buffer,
+    /// Buffer containing the components transforms and types
+    transforms: Buffer,
 
     /// Buffer containing the color definitions
     colors: Buffer,
@@ -68,5 +71,29 @@ pub struct ComputeBinding {
     bind_const: BindGroup,
 
     /// Swappable bindings for inputs and outputs
+    ping_pong: [BindGroup; 2],
+}
+
+/// Define the layout for submitting the data to the render shader
+pub struct RenderLayout {
+    /// Layout for projection matrix
+    layout_proj: BindGroupLayout,
+
+    /// Layout for components and colors
+    layout_static: BindGroupLayout,
+
+    /// Layout for process
+    layout_process: BindGroupLayout,
+}
+
+/// Bind the buffer to the actual shader
+pub struct RenderBinding {
+    /// Binding for projection matrix
+    bind_proj: BindGroup,
+
+    /// Binding for components and colors
+    bind_static: BindGroup,
+
+    /// Swappable bindings for processed buffer
     ping_pong: [BindGroup; 2],
 }

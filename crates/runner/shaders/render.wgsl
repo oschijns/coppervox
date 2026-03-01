@@ -26,7 +26,7 @@ var<uniform> projection: mat4x4<f32>;
 
 /// Storage buffer containing all object instances
 @group(1) @binding(0)
-var<storage, read> components: array<ComponentData>;
+var<storage, read> transforms: array<ComponentData>;
 
 // The three colors to use for lighting up the component upon activation
 @group(1) @binding(1)
@@ -59,7 +59,7 @@ fn vertex_main(
     var out: ToFragment;
 
     // Get per-instance data
-    let comp = components[instance_id];
+    let comp = transforms[instance_id];
 
     // Position the vertex relative to the camera
     let trs = projection * comp.transform;

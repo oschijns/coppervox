@@ -1,10 +1,22 @@
 use super::*;
-use crate::shader_const::{BIND_CONNECTIONS, BIND_INPUTS, BIND_OPERATIONS, BIND_OUTPUTS};
+use crate::shader_const::Layout;
 use kiss3d::prelude::*;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages,
 };
+
+/// Define connections between outputs and inputs
+pub const BIND_CONNECTIONS: Layout = Layout::new(0, 0);
+
+/// Define the type of operation and the number of inputs to read for each output
+pub const BIND_OPERATIONS: Layout = Layout::new(0, 1);
+
+/// Input values to process
+pub const BIND_INPUTS: Layout = Layout::new(1, 0);
+
+/// Ouput values to write
+pub const BIND_OUTPUTS: Layout = Layout::new(1, 1);
 
 impl ComputeLayout {
     /// Create the layouts for the compute shader
