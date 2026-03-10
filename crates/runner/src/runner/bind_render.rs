@@ -1,6 +1,7 @@
 use super::*;
-use crate::shader_const::Layout;
+use crate::{runner::alloc_buffers::Mat4x4, shader_const::Layout};
 use kiss3d::prelude::*;
+use std::num::NonZero;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages,
@@ -57,9 +58,9 @@ fn create_proj_layout(ctx: &Context) -> BindGroupLayout {
             binding: BIND_PROJECTION.binding,
             visibility: ShaderStages::COMPUTE,
             ty: BindingType::Buffer {
-                ty: BufferBindingType::Storage { read_only: true },
+                ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
-                min_binding_size: None,
+                min_binding_size: NonZero::new(size_of::<Mat4x4>() as u64),
             },
             count: None,
         }],

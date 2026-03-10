@@ -10,16 +10,17 @@ use coppervox_config::color::ColorSet;
 use kiss3d::prelude::*;
 use wgpu::BufferUsages;
 
-/// Component data
-#[repr(C)]
-#[derive(NoUninit, Clone, Copy)]
-pub struct Matrix(pub(crate) [[f32; 4]; 4]);
+/// WGSL mat4x4<f32>
+pub type Mat4x4 = [[f32; 4]; 4];
+
+/// WGSL vec4<f32>
+pub type Vec4 = [f32; 4];
 
 /// Component data
 #[repr(C)]
 #[derive(NoUninit, Clone, Copy)]
 pub struct ComponentData {
-    pub(crate) transform: [[f32; 4]; 4],
+    pub(crate) transform: Mat4x4,
     pub(crate) type_index: u32,
     pub(crate) _padding: [u32; 3],
 }
@@ -28,48 +29,48 @@ pub struct ComponentData {
 #[repr(C)]
 #[derive(NoUninit, Clone, Copy)]
 pub struct Colors {
-    pub(crate) off: [f32; 4],
-    pub(crate) low: [f32; 4],
-    pub(crate) high: [f32; 4],
+    pub(crate) off: Vec4,
+    pub(crate) low: Vec4,
+    pub(crate) high: Vec4,
 }
 
 impl AllocBuffers {
     /// Allocate buffers and fill them with the provided data
     pub fn new(
         ctx: &Context,
-        projection: &Matrix,
+        projection: &Mat4x4,
         connections: &[u32],
         operations: &[u32],
         transforms: &[ComponentData],
         colors: &[Colors],
         inits: &[u32],
     ) -> Self {
-        let s = BufferUsages::STORAGE;
-        let i = BufferUsages::STORAGE | BufferUsages::COPY_SRC;
+        let store = BufferUsages::STORAGE;
+        let uni = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
         let io = BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST;
 
         Self {
             projection: ctx.create_buffer_init(
                 Some("projection"),
                 bytemuck::bytes_of(projection),
-                i,
+                uni,
             ),
             connections: ctx.create_buffer_init(
                 Some("connections"),
                 bytemuck::cast_slice(connections),
-                s,
+                store,
             ),
             operations: ctx.create_buffer_init(
                 Some("operations"),
                 bytemuck::cast_slice(operations),
-                s,
+                store,
             ),
             transforms: ctx.create_buffer_init(
                 Some("transforms"),
                 bytemuck::cast_slice(transforms),
-                s,
+                store,
             ),
-            colors: ctx.create_buffer_init(Some("colors"), bytemuck::cast_slice(colors), s),
+            colors: ctx.create_buffer_init(Some("colors"), bytemuck::cast_slice(colors), store),
             ping_pong: [
                 ctx.create_buffer_init(Some("ping"), bytemuck::cast_slice(inits), io),
                 ctx.create_buffer_init(Some("pong"), bytemuck::cast_slice(inits), io),
