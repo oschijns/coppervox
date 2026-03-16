@@ -5,34 +5,10 @@
  */
 
 use super::*;
-use bytemuck::NoUninit;
+use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
 use coppervox_config::color::ColorSet;
 use kiss3d::prelude::*;
 use wgpu::BufferUsages;
-
-/// WGSL mat4x4<f32>
-pub type Mat4x4 = [[f32; 4]; 4];
-
-/// WGSL vec4<f32>
-pub type Vec4 = [f32; 4];
-
-/// Component data
-#[repr(C)]
-#[derive(NoUninit, Clone, Copy)]
-pub struct ComponentData {
-    pub(crate) transform: Mat4x4,
-    pub(crate) type_index: u32,
-    pub(crate) _padding: [u32; 3],
-}
-
-/// Colors for a component type
-#[repr(C)]
-#[derive(NoUninit, Clone, Copy)]
-pub struct Colors {
-    pub(crate) off: Vec4,
-    pub(crate) low: Vec4,
-    pub(crate) high: Vec4,
-}
 
 impl AllocBuffers {
     /// Allocate buffers and fill them with the provided data
@@ -41,8 +17,8 @@ impl AllocBuffers {
         projection: &Mat4x4,
         connections: &[u32],
         operations: &[u32],
-        transforms: &[ComponentData],
-        colors: &[Colors],
+        instances: &[InstanceData],
+        color_presets: &[ColorPreset],
         inits: &[u32],
     ) -> Self {
         let store = BufferUsages::STORAGE;
@@ -65,12 +41,16 @@ impl AllocBuffers {
                 bytemuck::cast_slice(operations),
                 store,
             ),
-            transforms: ctx.create_buffer_init(
-                Some("transforms"),
-                bytemuck::cast_slice(transforms),
+            instances: ctx.create_buffer_init(
+                Some("instances"),
+                bytemuck::cast_slice(instances),
                 store,
             ),
-            colors: ctx.create_buffer_init(Some("colors"), bytemuck::cast_slice(colors), store),
+            color_presets: ctx.create_buffer_init(
+                Some("color_presets"),
+                bytemuck::cast_slice(color_presets),
+                store,
+            ),
             ping_pong: [
                 ctx.create_buffer_init(Some("ping"), bytemuck::cast_slice(inits), io),
                 ctx.create_buffer_init(Some("pong"), bytemuck::cast_slice(inits), io),
@@ -80,7 +60,7 @@ impl AllocBuffers {
 }
 
 /// Convert a color set into a data struct to be passed to the shader
-impl From<ColorSet> for Colors {
+impl From<ColorSet> for ColorPreset {
     fn from(set: ColorSet) -> Self {
         Self {
             off: convert_color(set.off),

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{runner::alloc_buffers::Mat4x4, shader_const::Layout};
+use crate::shader_const::{Layout, Mat4x4};
 use kiss3d::prelude::*;
 use std::num::NonZero;
 use wgpu::{
@@ -14,7 +14,7 @@ pub const BIND_PROJECTION: Layout = Layout::new(0, 0);
 pub const BIND_TRANSFORMS: Layout = Layout::new(1, 0);
 
 /// Color presets
-pub const BIND_COLORS: Layout = Layout::new(1, 1);
+pub const BIND_COLOR_PRESETS: Layout = Layout::new(1, 1);
 
 /// Processed values to display on the components
 pub const BIND_PROCESSED: Layout = Layout::new(2, 0);
@@ -39,8 +39,8 @@ impl RenderBinding {
             bind_static: create_static_bind(
                 ctx,
                 &layout.layout_static,
-                &buffers.transforms,
-                &buffers.colors,
+                &buffers.instances,
+                &buffers.color_presets,
             ),
             ping_pong: [
                 create_process_bind(ctx, "ping", &layout.layout_process, pong),
@@ -83,7 +83,7 @@ fn create_static_layout(ctx: &Context) -> BindGroupLayout {
                 count: None,
             },
             BindGroupLayoutEntry {
-                binding: BIND_COLORS.binding,
+                binding: BIND_COLOR_PRESETS.binding,
                 visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Storage { read_only: true },
@@ -141,7 +141,7 @@ fn create_static_bind(
                 resource: transforms.as_entire_binding(),
             },
             BindGroupEntry {
-                binding: BIND_COLORS.binding,
+                binding: BIND_COLOR_PRESETS.binding,
                 resource: colors.as_entire_binding(),
             },
         ],

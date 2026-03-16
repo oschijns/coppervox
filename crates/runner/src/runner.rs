@@ -46,11 +46,11 @@ pub struct AllocBuffers {
     /// Buffer containing the operations data
     operations: Buffer,
 
-    /// Buffer containing the components transforms and types
-    transforms: Buffer,
+    /// Buffer containing the instances data
+    instances: Buffer,
 
     /// Buffer containing the color definitions
-    colors: Buffer,
+    color_presets: Buffer,
 
     /// Swapppable buffers for inputs and outputs
     ping_pong: [Buffer; 2],

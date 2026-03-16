@@ -1,3 +1,5 @@
+use bytemuck::NoUninit;
+
 /// Size of workgroups
 pub const WORKGROUP: u32 = 256;
 
@@ -12,6 +14,46 @@ pub type Value = u32;
 
 /// Values transmitted over components are 32-bits
 pub const VALUE_SIZE: usize = 32;
+
+/// WGSL mat4x4<f32>
+pub type Mat4x4 = [[f32; 4]; 4];
+
+/// WGSL vec4<f32>
+pub type Vec4 = [f32; 4];
+
+/// Instance data
+#[repr(C)]
+#[derive(NoUninit, Default, Clone, Copy)]
+pub struct InstanceData {
+    /// Transform to apply to the mesh
+    pub(crate) transform: Mat4x4,
+
+    /// Index of the color set to pull from the colors buffer
+    pub(crate) colors_index: u32,
+
+    /// Offset where to read vertices indices from the index buffer
+    pub(crate) mesh_offset: u32,
+
+    /// Number of indices to read for a given mesh
+    pub(crate) mesh_length: u32,
+
+    /// Complementary padding
+    pub(crate) _padding: u32,
+}
+
+/// Colors for a component type
+#[repr(C)]
+#[derive(NoUninit, Default, Clone, Copy)]
+pub struct ColorPreset {
+    /// Color used when the component is fully off (0)
+    pub(crate) off: Vec4,
+
+    /// Color used when the component has low power (1)
+    pub(crate) low: Vec4,
+
+    /// Color used when the component has high power (u32::MAX)
+    pub(crate) high: Vec4,
+}
 
 #[repr(u32)]
 #[derive(Debug, Default)]

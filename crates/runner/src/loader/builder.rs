@@ -1,23 +1,26 @@
 use super::Loader;
 use crate::{
     loader::mesher::QuadDataReader,
-    shader_const::{MAX_CNX, Op},
+    shader_const::{ColorPreset, InstanceData, MAX_CNX, Op, Value},
 };
 use coppervox_analyzer::{
-    Analysis, IslandInfo, Label, Mesher,
+    Analysis, IslandInfo, Label, Mesher, ShapeHash,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
     petgraph::{Direction, matrix_graph::NodeIndex, visit::IntoNodeIdentifiers},
 };
 use coppervox_common::Voxel;
 use coppervox_config::component::{CompDef, Interface};
 use kiss3d::procedural::RenderMesh;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 /// Error reporting when accessing information
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
     #[error("{0}")]
     Analysis(#[from] coppervox_analyzer::Error),
+
+    #[error("There is an inconsistency in the mesh associated with a component {0:#08x}")]
+    MeshInconsistency(ShapeHash),
 
     #[error("No configuration defined for the voxel type {0}")]
     NoConfig(Voxel),
@@ -43,6 +46,10 @@ struct Ordering {
 
     /// Range of the components used as outputs
     range_outputs: [usize; 2],
+
+    /// Store the meshes in a arbitrary order.
+    /// This will allow us to serialize all the meshes into a single buffer.
+    meshes: Vec<Arc<RenderMesh>>,
 }
 
 /// Group all the relevant data of a component
@@ -62,6 +69,9 @@ struct Component {
 
     /// The mesh to render
     mesh: Arc<RenderMesh>,
+
+    /// Index of the mesh
+    mesh_index: usize,
 }
 
 /// Generated buffers at the end of the processing
@@ -72,8 +82,14 @@ pub struct Buffers {
     /// Store operations and the number of connections
     operations: Vec<u32>,
 
+    /// Data of the instances to render
+    instances: Vec<InstanceData>,
+
+    /// Buffer of colors
+    color_presets: Vec<ColorPreset>,
+
     /// Store the initial values for the inputs
-    inits: Vec<u32>,
+    inits: Vec<Value>,
 }
 
 impl Loader {
@@ -94,6 +110,8 @@ impl Loader {
         let count = analysis.count();
         let mut connections = vec![0; count * COUNT];
         let mut operations = vec![0; count];
+        let mut instances = vec![InstanceData::default(); count];
+        let mut color_presets = vec![ColorPreset::default(); self.config.0.len()];
         let mut inits = vec![0; count];
 
         // Resolve the ordered position of the nodes from the incidence matrix.
@@ -129,6 +147,8 @@ impl Loader {
         Ok(Buffers {
             connections,
             operations,
+            instances,
+            color_presets,
             inits,
         })
     }
@@ -151,6 +171,15 @@ impl Loader {
         let mut indexes = Vec::with_capacity(count);
         indexes.resize(count, usize::MAX);
 
+        // define an arbitrary ordering for the meshes
+        let shape_count = shape_set.count();
+        let mut meshes = Vec::with_capacity(shape_count);
+        let mut shape_hash_map = HashMap::with_capacity(shape_count);
+        for (i, (hash, mesh)) in shape_set.get_hash_and_mesh_entries().enumerate() {
+            meshes.push(mesh.clone());
+            shape_hash_map.insert(*hash, i);
+        }
+
         // Iterate over the components
         for (i, (&label, &info)) in analysis.labeled_model().iter().enumerate() {
             // Identify the type of the component
@@ -159,7 +188,13 @@ impl Loader {
                 return Err(Error::NoConfig(voxel));
             };
 
-            let mesh = shape_set.get_mesh(label)?;
+            // Get the hash and the mesh, recover the target position of the mesh
+            let (hash, mesh) = shape_set.get_hash_and_mesh(label)?;
+            let mesh_index = *shape_hash_map
+                .get(&hash)
+                .ok_or(Error::MeshInconsistency(hash))?;
+
+            // Get the index of the node for the incidence matrix
             let node_index = connectivity.get_node_index(label)?;
 
             // Store the position of the node in the ordered list
@@ -179,6 +214,7 @@ impl Loader {
                 info,
                 node_index,
                 mesh: mesh.clone(),
+                mesh_index,
             }));
         }
 
@@ -209,6 +245,7 @@ impl Loader {
             indexes,
             range_inputs,
             range_outputs,
+            meshes,
         })
     }
 }

@@ -4,7 +4,7 @@ use coppervox_common::{
     Model, Voxel,
     gridmap::{
         gridmap::bounding_box::BoundingBox,
-        hashbrown::hash_map::{Iter, Values, ValuesMut},
+        hashbrown::hash_map::{Iter, Keys, Values, ValuesMut},
     },
 };
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
@@ -126,6 +126,12 @@ impl IslandInfo {
 }
 
 impl<M> ShapeSet<M> {
+    /// Get the number of shapes defined in this set
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.shapes.len()
+    }
+
     /// Get the shape from the label of the island
     pub fn get_shape(&self, label: Label) -> Result<&ShapeData, Error> {
         if let Some(shape) = self
@@ -153,13 +159,44 @@ impl<M> ShapeSet<M> {
     }
 
     /// Access the list of meshes generated
+    #[inline]
     pub fn get_meshes(&self) -> Values<'_, ShapeHash, M> {
         self.meshes.values()
     }
 
     /// Access the list of meshes generated
+    #[inline]
     pub fn get_meshes_mut(&mut self) -> ValuesMut<'_, ShapeHash, M> {
         self.meshes.values_mut()
+    }
+
+    /// From a label, get a hash and the corresponding mesh
+    pub fn get_hash_and_mesh(&self, label: Label) -> Result<(ShapeHash, &M), Error> {
+        if let Some(&hash) = self.mapping.get(&label)
+            && let Some(mesh) = self.meshes.get(&hash)
+        {
+            Ok((hash, mesh))
+        } else {
+            Err(Error::NoMesh)
+        }
+    }
+
+    /// Get the list of hashes defined in this set
+    #[inline]
+    pub fn get_hashes(&self) -> Keys<'_, ShapeHash, M> {
+        self.meshes.keys()
+    }
+
+    /// Get the list of hashes defined in this set
+    #[inline]
+    pub fn get_hash_and_mesh_entries(&self) -> Iter<'_, ShapeHash, M> {
+        self.meshes.iter()
+    }
+
+    /// Get a mesh for a given hash
+    #[inline]
+    pub fn get_mesh_from_hash(&self, hash: ShapeHash) -> Option<&M> {
+        self.meshes.get(&hash)
     }
 }
 
