@@ -4,9 +4,10 @@ pub mod builder;
 /// Build mesh from quad data
 pub mod mesher;
 
-use crate::shader_const::Op;
+use crate::shader_const::{ColorPreset, Op, Value};
 use coppervox_common::Model;
 use coppervox_config::{Config, component::CompType};
+use kiss3d::scene::Object3d;
 
 /// Configuration loaded from the input files provided
 pub struct Loader {
@@ -15,6 +16,25 @@ pub struct Loader {
 
     /// Configuration loaded from the text file
     config: Config,
+}
+
+/// Circuit data loaded from the model and config
+pub struct Circuit {
+    /// Store connections between components
+    connections: Vec<u32>,
+
+    /// Store operations and the number of connections
+    operations: Vec<u32>,
+
+    /// Buffer of colors
+    color_presets: Vec<ColorPreset>,
+
+    /// Store the initial values for the inputs
+    inits: Vec<Value>,
+
+    // TODO: lookup instancing example
+    /// Objects generated for the components to be rendered
+    objects: Vec<Object3d>,
 }
 
 impl Loader {
