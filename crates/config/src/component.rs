@@ -1,4 +1,4 @@
-use crate::{VALUE_SIZE, Value, color::ColorSet};
+use crate::{VALUE_SIZE, Value, color::ColorIndex};
 use kiss3d::event::Key;
 use serde::Deserialize;
 
@@ -9,7 +9,7 @@ pub struct CompDef {
     pub comp_type: CompType,
 
     /// Colors of the component
-    pub color_set: ColorSet,
+    pub color_index: ColorIndex,
 }
 
 #[repr(u32)]
@@ -64,13 +64,16 @@ pub enum CompType {
 pub enum Interface {
     /// The component does not interface with the outside world
     #[default]
-    None = 0,
+    None = 0b00,
 
     /// The component serves as an input
-    Input,
+    Input = 0b01,
 
     /// The component serves as an output
-    Output,
+    Output = 0b10,
+
+    /// The component serves as both an input and an output
+    Both = 0b11,
 }
 
 impl CompType {

@@ -21,6 +21,7 @@ pub type Mat4x4 = [[f32; 4]; 4];
 /// WGSL vec4<f32>
 pub type Vec4 = [f32; 4];
 
+/*
 /// Instance data
 #[repr(C)]
 #[derive(NoUninit, Default, Clone, Copy)]
@@ -40,6 +41,7 @@ pub struct InstanceData {
     /// Complementary padding
     pub(crate) _padding: u32,
 }
+*/
 
 /// Colors for a component type
 #[repr(C)]

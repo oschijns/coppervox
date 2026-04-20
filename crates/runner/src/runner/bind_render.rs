@@ -36,12 +36,14 @@ impl RenderBinding {
         let [ping, pong] = &buffers.ping_pong;
         Self {
             bind_proj: create_proj_bind(ctx, &layout.layout_proj, &buffers.projection),
+            /*
             bind_static: create_static_bind(
                 ctx,
                 &layout.layout_static,
                 &buffers.instances,
                 &buffers.color_presets,
             ),
+            */
             ping_pong: [
                 create_process_bind(ctx, "ping", &layout.layout_process, pong),
                 create_process_bind(ctx, "pong", &layout.layout_process, ping),

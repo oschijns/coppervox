@@ -46,9 +46,8 @@ pub struct AllocBuffers {
     /// Buffer containing the operations data
     operations: Buffer,
 
-    /// Buffer containing the instances data
-    instances: Buffer,
-
+    // Buffer containing the instances data
+    //instances: Buffer,
     /// Buffer containing the color definitions
     color_presets: Buffer,
 
@@ -91,9 +90,9 @@ pub struct RenderBinding {
     /// Binding for projection matrix
     bind_proj: BindGroup,
 
-    /// Binding for components and colors
-    bind_static: BindGroup,
-
+    // Binding for components and colors
+    //bind_static: BindGroup,
+    //
     /// Swappable bindings for processed buffer
     ping_pong: [BindGroup; 2],
 }

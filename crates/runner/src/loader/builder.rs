@@ -1,251 +1,228 @@
-use super::Loader;
-use crate::{
-    loader::mesher::QuadDataReader,
-    shader_const::{ColorPreset, InstanceData, MAX_CNX, Op, Value},
-};
+use super::{Error, mesher::QuadDataReader};
+use crate::shader_const::MAX_CNX;
 use coppervox_analyzer::{
-    Analysis, IslandInfo, Label, Mesher, ShapeHash,
+    Analysis, Connectivity, IslandInfo, Label, Mesher, ShapeSet,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
-    petgraph::{Direction, matrix_graph::NodeIndex, visit::IntoNodeIdentifiers},
+    petgraph::Direction,
 };
-use coppervox_common::Voxel;
-use coppervox_config::component::{CompDef, Interface};
+use coppervox_common::Model;
+use coppervox_config::{
+    Config,
+    color::ColorSet,
+    component::{CompDef, Interface},
+};
 use kiss3d::procedural::RenderMesh;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, rc::Rc};
 
-/// Error reporting when accessing information
-#[derive(thiserror::Error, Debug, Clone, Copy)]
-pub enum Error {
-    #[error("{0}")]
-    Analysis(#[from] coppervox_analyzer::Error),
+/*
+ * When processing the analysis, we want to define two ordering of the components.
+ * On one hand, we want to order the components by inputs, outputs and internals.
+ * On the other hand, we want to order the components by their meshes.
+ *
+ * To obtain the buffers, we need first to define a list of unique meshes.
+ * For each mesh, we want the list of components that use it.
+ * On each component we'll store an index to the process buffers.
+ *
+ * Then we generate lists for the process logic.
+ * For each component on the logical part,
+ * we want to find the corresponding component on the render side.
+ *
+ */
 
-    #[error("There is an inconsistency in the mesh associated with a component {0:#08x}")]
-    MeshInconsistency(ShapeHash),
+/// Reference-counted mesh
+type RcMesh = Rc<RenderMesh>;
 
-    #[error("No configuration defined for the voxel type {0}")]
-    NoConfig(Voxel),
+/// Build an analysis of the model, using the given mesher and reader
+fn analyze(model: &Model) -> Analysis<RcMesh> {
+    // Config for generating meshes from quad data
+    const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
+    let mut mesher = Mesher::new(QUAD_CONFIG, 0);
+    let mut reader = QuadDataReader::new(true, false);
 
-    #[error("Node 0x{0:04x} in the incidence matrix is not mapped")]
-    NodeIndexUnmapped(usize),
-
-    #[error("Too many connections defined on a component")]
-    TooManyConnections,
+    // Analyse the model
+    Analysis::build(model, &mut mesher, &mut reader)
 }
 
-/// Define an ordering for the components
-struct Ordering {
-    /// Define the order of the components
-    #[allow(clippy::vec_box)]
-    order: Vec<Box<Component>>,
+/// Ordering of components by the mesh they share
+struct MeshOrdering {
+    /// List of unique meshes extracted from the shape set
+    meshes: Vec<RcMesh>,
 
-    /// For a given node index, get its position in the ordered list
-    indexes: Vec<usize>,
+    /// List of components and their associated mesh indices
+    components: Vec<(usize, Label)>,
+}
 
-    /// Range of the components used as inputs
+impl MeshOrdering {
+    /// Order components by the mesh they share
+    fn make(shape_set: &ShapeSet<RcMesh>) -> Self {
+        // How many objects and how many shapes/meshes are defined.
+        let count_obj = shape_set.count_objects();
+        let count_shp = shape_set.count_shapes();
+
+        // storage for the meshes extracted and the components using them
+        let mut meshes = Vec::with_capacity(count_shp);
+        let mut components = Vec::with_capacity(count_obj);
+
+        // temporary storage for the labels associated with each mesh
+        let mut labels = Vec::with_capacity(count_obj);
+
+        // Find all labels associated with each mesh
+        for (index, (&hash, mesh)) in shape_set.iter_hashes_meshes().enumerate() {
+            meshes.push(mesh.clone());
+
+            // Find all labels associated with this mesh
+            shape_set.find_labels(hash, &mut labels);
+            for &label in labels.iter() {
+                components.push((index, label));
+            }
+        }
+
+        // return the ordering
+        Self { meshes, components }
+    }
+}
+
+/// Ordering of the components based on whenever they are inputs or outputs
+struct IoOrdering {
+    /// List of color sets
+    colors: Vec<ColorSet>,
+
+    /// List of components ordered by their IO type
+    components: Vec<(Label, CompDef)>,
+
+    /// Given a label, find the index of the component in the ordered list
+    label_index: HashMap<Label, usize>,
+
+    /// Range of inputs
     range_inputs: [usize; 2],
 
-    /// Range of the components used as outputs
+    /// Range of outputs
     range_outputs: [usize; 2],
-
-    /// Store the meshes in a arbitrary order.
-    /// This will allow us to serialize all the meshes into a single buffer.
-    meshes: Vec<Arc<RenderMesh>>,
 }
 
-/// Group all the relevant data of a component
-#[derive(Clone)]
-struct Component {
-    /// Identifier of the component
-    label: Label,
+impl IoOrdering {
+    /// Order components by their IO connectivity
+    fn make(config: &Config, islands: &HashMap<Label, IslandInfo>) -> Self {
+        let count = islands.len();
 
-    /// Corresponding config
-    definition: CompDef,
+        // we define multiple arrays to store the components by their IO type
+        let mut lists = [
+            Vec::with_capacity(count), // none
+            Vec::with_capacity(count), // input
+            Vec::with_capacity(count), // output
+            Vec::with_capacity(count), // both
+        ];
 
-    /// Voxel information
-    info: IslandInfo,
+        // Iterate over each island data
+        for (&label, info) in islands.iter() {
+            let voxel = info.voxel_value();
+            if let Some(def) = config.map.get(&voxel) {
+                let interface = def.comp_type.interface();
 
-    /// Get the index of the component in the incidence matrix
-    node_index: NodeIndex,
+                // Get the list for this interface type
+                let list = &mut lists[interface as usize];
+                list.push((label, *def));
+            }
+        }
 
-    /// The mesh to render
-    mesh: Arc<RenderMesh>,
+        // Regroup the generated list in the following order: [ inputs, both, outputs, none ]
+        // This allows faster buffers exchanges between the CPU and the GPU
+        macro_rules! get {
+            ($type:ident) => {
+                lists[Interface::$type as usize].as_slice()
+            };
+        }
+        let inputs = get![Input];
+        let boths = get![Both];
+        let outputs = get![Output];
+        let nones = get![None];
 
-    /// Index of the mesh
-    mesh_index: usize,
+        // Get the size of each array
+        let li = inputs.len();
+        let lb = boths.len();
+        let lo = outputs.len();
+        let ln = nones.len();
+
+        // Compute the ranges of inputs and outputs
+        let range_inputs = [0, li + lb];
+        let range_outputs = [li, li + lb + lo];
+
+        // Create a single list of components where they are ordered by their IO type
+        let mut components = Vec::with_capacity(li + lb + lo + ln);
+        components.extend_from_slice(inputs);
+        components.extend_from_slice(boths);
+        components.extend_from_slice(outputs);
+        components.extend_from_slice(nones);
+
+        // Find the index of each component in the ordered list
+        let mut label_index = HashMap::with_capacity(components.len());
+        for (i, (label, _)) in components.iter().enumerate() {
+            label_index.insert(*label, i);
+        }
+
+        // Store the data found in a struct
+        Self {
+            colors: config.colors.clone(),
+            components,
+            label_index,
+            range_inputs,
+            range_outputs,
+        }
+    }
 }
 
-/// Generated buffers at the end of the processing
-pub struct Buffers {
-    /// Store connections between components
-    connections: Vec<u32>,
+/// The maximum number of connections a component can have
+const CNX_COUNT: usize = MAX_CNX as usize;
 
-    /// Store operations and the number of connections
-    operations: Vec<u32>,
-
-    /// Data of the instances to render
-    instances: Vec<InstanceData>,
-
-    /// Buffer of colors
-    color_presets: Vec<ColorPreset>,
-
-    /// Store the initial values for the inputs
-    inits: Vec<Value>,
+/// Define how components are connected to each other
+struct Connect {
+    /// For each component, we store at most `MAX_CNX` connections
+    /// Components are ordered the same way as `IoOrdering`
+    buffer: Vec<(usize, [usize; CNX_COUNT])>,
 }
 
-impl Loader {
-    /// Build a logic circuit from the loaded model data
-    pub fn build(&self) -> Result<Buffers, Error> {
-        const COUNT: usize = MAX_CNX as usize;
-
-        // Config for generating meshes from quad data
-        const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
-        let mut mesher = Mesher::new(QUAD_CONFIG, 0);
-        let mut reader = QuadDataReader::new(true, false);
-
-        // Analyse the model
-        let analysis = Analysis::build(&self.model, &mut mesher, &mut reader);
-        let order = self.get_order(&analysis)?;
-
-        // Allocate buffers to store the data
-        let count = analysis.count();
-        let mut connections = vec![0; count * COUNT];
-        let mut operations = vec![0; count];
-        let mut instances = vec![InstanceData::default(); count];
-        let mut color_presets = vec![ColorPreset::default(); self.config.0.len()];
-        let mut inits = vec![0; count];
+impl Connect {
+    /// Construct a `Connect` buffer from the given `IoOrdering` and `Connectivity`
+    fn make(io_order: &IoOrdering, connectivity: &Connectivity) -> Result<Self, Error> {
+        // Buffer to compose
+        let mut buffer = Vec::with_capacity(io_order.components.len());
 
         // Resolve the ordered position of the nodes from the incidence matrix.
-        let incidence = analysis.connectivity().incidence_matrix();
+        let incidence = connectivity.incidence_matrix();
 
-        // For each node in the matrix
-        for node1 in incidence.node_identifiers() {
-            let index1 = order.indexes[node1.index()];
-            let start = index1 * COUNT;
+        // Iterate over the components
+        for (label1, _) in io_order.components.iter() {
+            let node1 = connectivity.get_node_index(*label1)?;
+
+            // Fixed size buffer to store the indexes of the components connected to this node
+            let mut connections = [0usize; CNX_COUNT];
 
             // Find all neighbors going toward the node
-            let mut counter = 0usize;
+            let mut count = 0usize;
             for (i, node2) in incidence
                 .neighbors_directed(node1, Direction::Incoming)
                 .enumerate()
             {
-                let index2 = order.indexes[node2.index()];
-                connections[start + i] = index2 as u32;
-                counter += 1;
+                // If a node has more than `MAX_CNX` connections, return an error
+                if i >= CNX_COUNT {
+                    return Err(Error::TooManyConnections);
+                }
+
+                // Get the label of the neighbor node
+                let label2 = incidence.node_weight(node2);
+                let Some(&index2) = io_order.label_index.get(label2) else {
+                    return Err(Error::NodeIndexUnmapped(node2.index()));
+                };
+
+                // Store the index of the connected component
+                connections[i] = index2;
+                count += 1;
             }
 
-            // check that we did not overshoot the maximum number of connections allowed
-            if counter > COUNT {
-                return Err(Error::TooManyConnections);
-            }
-
-            // Get the rest of the informations for this component
-            let comp = &order.order[index1].definition.comp_type;
-            operations[index1] = Op::from_type(comp) as u32 | counter as u32;
-            inits[index1] = comp.start_value();
+            // Store the connections for this node
+            buffer.push((count, connections));
         }
 
-        Ok(Buffers {
-            connections,
-            operations,
-            instances,
-            color_presets,
-            inits,
-        })
-    }
-
-    /// Define an ordering for the components.
-    /// This will allow to optimize buffer copies between the CPU and the GPU.
-    fn get_order(&self, analysis: &Analysis<Arc<RenderMesh>>) -> Result<Ordering, Error> {
-        // How many component do we have in the simulation?
-        let count = analysis.count();
-        let shape_set = analysis.shape_set();
-        let connectivity = analysis.connectivity();
-
-        // We want to organize components into three groups
-        let mut group_nones = Vec::with_capacity(count);
-        let mut group_inputs = Vec::with_capacity(count);
-        let mut group_outputs = Vec::with_capacity(count);
-
-        // For a given node in the incidence matrix,
-        // find its position in the ordered list.
-        let mut indexes = Vec::with_capacity(count);
-        indexes.resize(count, usize::MAX);
-
-        // define an arbitrary ordering for the meshes
-        let shape_count = shape_set.count();
-        let mut meshes = Vec::with_capacity(shape_count);
-        let mut shape_hash_map = HashMap::with_capacity(shape_count);
-        for (i, (hash, mesh)) in shape_set.get_hash_and_mesh_entries().enumerate() {
-            meshes.push(mesh.clone());
-            shape_hash_map.insert(*hash, i);
-        }
-
-        // Iterate over the components
-        for (i, (&label, &info)) in analysis.labeled_model().iter().enumerate() {
-            // Identify the type of the component
-            let voxel = info.voxel_value();
-            let Some(&def) = self.config.0.get(&voxel) else {
-                return Err(Error::NoConfig(voxel));
-            };
-
-            // Get the hash and the mesh, recover the target position of the mesh
-            let (hash, mesh) = shape_set.get_hash_and_mesh(label)?;
-            let mesh_index = *shape_hash_map
-                .get(&hash)
-                .ok_or(Error::MeshInconsistency(hash))?;
-
-            // Get the index of the node for the incidence matrix
-            let node_index = connectivity.get_node_index(label)?;
-
-            // Store the position of the node in the ordered list
-            indexes[node_index.index()] = i;
-
-            // Deduce to which group the component should be added
-            let group = match def.comp_type.interface() {
-                Interface::None => &mut group_nones,
-                Interface::Input => &mut group_inputs,
-                Interface::Output => &mut group_outputs,
-            };
-
-            // Get most data related to the component
-            group.push(Box::new(Component {
-                label,
-                definition: def,
-                info,
-                node_index,
-                mesh: mesh.clone(),
-                mesh_index,
-            }));
-        }
-
-        // Check that the indexes list is completely field
-        if let Some(index) = indexes.iter().position(|&i| i == usize::MAX) {
-            return Err(Error::NodeIndexUnmapped(index));
-        }
-
-        // We are putting the groups in the following order:
-        // - Inputs
-        // - Outputs
-        // - Internals
-
-        // Compute the ranges for the interfaces
-        let count_in = group_inputs.len();
-        let count_out = group_outputs.len();
-        let range_inputs = [0usize, count_in];
-        let range_outputs = [count_in, count_in + count_out];
-
-        // Compute the final list
-        let mut order = group_inputs;
-        order.append(&mut group_outputs);
-        order.append(&mut group_nones);
-
-        // Return the result
-        Ok(Ordering {
-            order,
-            indexes,
-            range_inputs,
-            range_outputs,
-            meshes,
-        })
+        Ok(Self { buffer })
     }
 }

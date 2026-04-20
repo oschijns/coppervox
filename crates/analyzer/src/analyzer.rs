@@ -12,6 +12,9 @@
 /// Basic operations
 mod base;
 
+/// Define iterators for reading results
+mod iterator;
+
 /// Label the initial model into islands
 mod labeling;
 

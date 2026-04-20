@@ -3,6 +3,9 @@ use regex::Regex;
 use serde::{Deserialize, Deserializer, de};
 use std::{num::ParseIntError, sync::LazyLock};
 
+/// Identifier for a color set
+pub type ColorIndex = usize;
+
 /// Define how a component should be colorized
 #[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
 pub struct ColorSet {

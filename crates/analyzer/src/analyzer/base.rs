@@ -1,12 +1,6 @@
 use super::{Analysis, Connectivity, Error, Info, Label, LabeledModel, QuadsReader};
-use crate::analyzer::{IslandInfo, ShapeData, ShapeHash, ShapeSet, meshing::Mesher};
-use coppervox_common::{
-    Model, Voxel,
-    gridmap::{
-        gridmap::bounding_box::BoundingBox,
-        hashbrown::hash_map::{Iter, Keys, Values, ValuesMut},
-    },
-};
+use crate::analyzer::{IslandInfo, ShapeHash, ShapeSet, meshing::Mesher};
+use coppervox_common::{Model, Voxel, gridmap::gridmap::bounding_box::BoundingBox};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 impl<M> Analysis<M> {
@@ -61,7 +55,7 @@ impl<M> Analysis<M> {
     /// Get island informations from a label
     pub fn info_from_label(&self, label: Label) -> Result<Info<'_, M>, Error> {
         let island = self.labeled_model.get_island_info(label)?;
-        let mesh = self.shape_set.get_mesh(label)?;
+        let (_, mesh) = self.shape_set.label_to_mesh(label)?;
         let node_index = self.connectivity.get_node_index(label)?;
         Ok(Info {
             label,
@@ -77,7 +71,7 @@ impl<M> Analysis<M> {
     pub fn info_from_node_index(&self, node_index: NodeIndex) -> Result<Info<'_, M>, Error> {
         let label = self.connectivity.get_label(node_index)?;
         let island = self.labeled_model.get_island_info(label)?;
-        let mesh = self.shape_set.get_mesh(label)?;
+        let (_, mesh) = self.shape_set.label_to_mesh(label)?;
         Ok(Info {
             label,
             voxel_value: island.voxel_value,
@@ -97,11 +91,6 @@ impl LabeledModel {
         } else {
             Err(Error::NoIsland)
         }
-    }
-
-    /// Iterate over the islands
-    pub fn iter(&self) -> Iter<'_, Label, IslandInfo> {
-        self.islands.iter()
     }
 }
 
@@ -126,52 +115,21 @@ impl IslandInfo {
 }
 
 impl<M> ShapeSet<M> {
-    /// Get the number of shapes defined in this set
+    /// Get the number of objects defined in this set.
+    /// It should be greater than or equal to the number of shapes.
     #[inline]
-    pub fn count(&self) -> usize {
+    pub fn count_objects(&self) -> usize {
+        self.mapping.len()
+    }
+
+    /// Get the number of shapes defined in this set.
+    #[inline]
+    pub fn count_shapes(&self) -> usize {
         self.shapes.len()
     }
 
-    /// Get the shape from the label of the island
-    pub fn get_shape(&self, label: Label) -> Result<&ShapeData, Error> {
-        if let Some(shape) = self
-            .mapping
-            .get(&label)
-            .and_then(|hash| self.shapes.get(hash))
-        {
-            Ok(shape)
-        } else {
-            Err(Error::NoShape)
-        }
-    }
-
-    /// Get the mesh from the label of the island
-    pub fn get_mesh(&self, label: Label) -> Result<&M, Error> {
-        if let Some(mesh) = self
-            .mapping
-            .get(&label)
-            .and_then(|hash| self.meshes.get(hash))
-        {
-            Ok(mesh)
-        } else {
-            Err(Error::NoMesh)
-        }
-    }
-
-    /// Access the list of meshes generated
-    #[inline]
-    pub fn get_meshes(&self) -> Values<'_, ShapeHash, M> {
-        self.meshes.values()
-    }
-
-    /// Access the list of meshes generated
-    #[inline]
-    pub fn get_meshes_mut(&mut self) -> ValuesMut<'_, ShapeHash, M> {
-        self.meshes.values_mut()
-    }
-
     /// From a label, get a hash and the corresponding mesh
-    pub fn get_hash_and_mesh(&self, label: Label) -> Result<(ShapeHash, &M), Error> {
+    pub fn label_to_mesh(&self, label: Label) -> Result<(ShapeHash, &M), Error> {
         if let Some(&hash) = self.mapping.get(&label)
             && let Some(mesh) = self.meshes.get(&hash)
         {
@@ -181,22 +139,14 @@ impl<M> ShapeSet<M> {
         }
     }
 
-    /// Get the list of hashes defined in this set
-    #[inline]
-    pub fn get_hashes(&self) -> Keys<'_, ShapeHash, M> {
-        self.meshes.keys()
-    }
-
-    /// Get the list of hashes defined in this set
-    #[inline]
-    pub fn get_hash_and_mesh_entries(&self) -> Iter<'_, ShapeHash, M> {
-        self.meshes.iter()
-    }
-
-    /// Get a mesh for a given hash
-    #[inline]
-    pub fn get_mesh_from_hash(&self, hash: ShapeHash) -> Option<&M> {
-        self.meshes.get(&hash)
+    /// Given a shape hash, find all associated labels
+    pub fn find_labels(&self, hash: ShapeHash, labels: &mut Vec<Label>) {
+        labels.clear();
+        for (label, &hash2) in &self.mapping {
+            if hash == hash2 {
+                labels.push(*label);
+            }
+        }
     }
 }
 
