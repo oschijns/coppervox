@@ -32,7 +32,7 @@ impl Config {
         let max = self.colors.len();
 
         // Check each color index
-        for (_, def) in &self.map {
+        for def in self.map.values() {
             if def.color_index >= max {
                 return false;
             }

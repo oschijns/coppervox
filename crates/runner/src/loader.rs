@@ -1,16 +1,24 @@
-/// Build the runner
-pub mod builder;
-
 /// Build mesh from quad data
 pub mod mesher;
 
-use std::{cell::RefCell, rc::Rc};
+/// Process the model and extract data in the order expected by the GPU
+pub mod processor;
 
-use crate::shader_const::{ColorPreset, Op, Value};
+/// Convert the data into types supported by the GPU
+pub mod converter;
+
+use crate::{
+    loader::{
+        converter::{Processing, Rendering},
+        processor::{Connect, IoOrdering, MeshOrdering},
+    },
+    shader_const::Op,
+};
 use coppervox_analyzer::ShapeHash;
 use coppervox_common::{Model, Voxel};
 use coppervox_config::{Config, component::CompType};
-use kiss3d::{prelude::GpuMesh3d, scene::Object3d};
+use kiss3d::{prelude::GpuMesh3d, procedural::RenderMesh};
+use std::{cell::RefCell, rc::Rc};
 
 /// Error reporting when accessing information
 #[derive(thiserror::Error, Debug, Clone, Copy)]
@@ -31,6 +39,12 @@ pub enum Error {
     TooManyConnections,
 }
 
+/// Reference-counted mesh
+pub type RcMesh = Rc<RenderMesh>;
+
+/// Reference to a GPU mesh, held in an `Rc` and protected by a `RefCell`
+pub type RcGpuMesh = Rc<RefCell<GpuMesh3d>>;
+
 /// Configuration loaded from the input files provided
 pub struct Loader {
     /// Model loaded from the file
@@ -40,41 +54,13 @@ pub struct Loader {
     config: Config,
 }
 
-/// Circuit data to be used by the process shader
-pub struct CircuitData {
-    /// Store connections between components
-    connections: Vec<u32>,
+/// Circuit split into processing data and rendering data
+pub struct Circuit {
+    /// Processing data
+    process: Processing,
 
-    /// Store operations and the number of connections
-    operations: Vec<(Op, u32)>,
-
-    /// Store the initial values for the inputs
-    inits: Vec<Value>,
-
-    /// Range of the components in the circuits
-    io_ranges: IoRanges,
-}
-
-/// Circuit data to be used by the render shader
-pub struct CircuitRender {
-    /// Buffer of colors
-    color_presets: Vec<ColorPreset>,
-
-    /// Objects generated for the components to be rendered
-    objects: Vec<Object3d>,
-}
-
-/// Reference to a GPU mesh, held in an `Rc` and protected by a `RefCell`
-pub type RefGpuMesh3d = Rc<RefCell<GpuMesh3d>>;
-
-/// Define ranges for inputs and outputs components in the circuit
-#[derive(Debug, Clone, Copy)]
-pub struct IoRanges {
-    /// Range of the components used as inputs
-    pub inputs: [usize; 2],
-
-    /// Range of the components used as outputs
-    pub outputs: [usize; 2],
+    /// Rendering data
+    render: Rendering,
 }
 
 impl Loader {
@@ -82,6 +68,20 @@ impl Loader {
     #[inline]
     pub fn new(model: Model, config: Config) -> Self {
         Self { model, config }
+    }
+}
+
+impl Circuit {
+    /// Access the processing data for this circuit
+    #[inline]
+    pub fn processing(&self) -> &Processing {
+        &self.process
+    }
+
+    /// Access the rendering data for this circuit
+    #[inline]
+    pub fn rendering(&self) -> &Rendering {
+        &self.render
     }
 }
 

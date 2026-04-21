@@ -1,18 +1,15 @@
-use super::{Error, mesher::QuadDataReader};
+use super::{Error, RcMesh, mesher::QuadDataReader};
 use crate::shader_const::MAX_CNX;
 use coppervox_analyzer::{
     Analysis, Connectivity, IslandInfo, Label, Mesher, ShapeSet,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
     petgraph::Direction,
 };
-use coppervox_common::Model;
+use coppervox_common::{Model, gridmap::hashbrown::HashMap};
 use coppervox_config::{
     Config,
-    color::ColorSet,
     component::{CompDef, Interface},
 };
-use kiss3d::procedural::RenderMesh;
-use std::{collections::HashMap, rc::Rc};
 
 /*
  * When processing the analysis, we want to define two ordering of the components.
@@ -29,8 +26,54 @@ use std::{collections::HashMap, rc::Rc};
  *
  */
 
-/// Reference-counted mesh
-type RcMesh = Rc<RenderMesh>;
+/// Circuit data to be used by the process shader
+pub struct OrderedData {
+    /// Meshes with corresponding components
+    mesh_order: MeshOrdering,
+
+    /// Components ordered by their IO type
+    io_order: IoOrdering,
+
+    /// Connections between components
+    connect: Connect,
+}
+
+impl OrderedData {
+    /// Get the meshes with corresponding components
+    #[inline]
+    pub fn meshes(&self) -> &MeshOrdering {
+        &self.mesh_order
+    }
+
+    /// Get the components ordered by their IO type
+    #[inline]
+    pub fn io_order(&self) -> &IoOrdering {
+        &self.io_order
+    }
+
+    /// Get the connections between components
+    #[inline]
+    pub fn connect(&self) -> &Connect {
+        &self.connect
+    }
+
+    /// Process the data loaded to obtain meshes and buffers
+    pub fn make(model: &Model, config: &Config) -> Result<Self, Error> {
+        // First analyze the model to identify shapes and connectivity
+        let analysis = analyze(model);
+
+        // Then convert the analysis into data usable by the GPU
+        let mesh_order = MeshOrdering::make(analysis.shape_set());
+        let io_order = IoOrdering::make(config, analysis.labeled_model().islands());
+        let connect = Connect::make(&io_order, analysis.connectivity())?;
+
+        Ok(Self {
+            mesh_order,
+            io_order,
+            connect,
+        })
+    }
+}
 
 /// Build an analysis of the model, using the given mesher and reader
 fn analyze(model: &Model) -> Analysis<RcMesh> {
@@ -44,15 +87,30 @@ fn analyze(model: &Model) -> Analysis<RcMesh> {
 }
 
 /// Ordering of components by the mesh they share
-struct MeshOrdering {
+pub struct MeshOrdering {
     /// List of unique meshes extracted from the shape set
+    /// Each mesh will be converted to `Rc<RefCell<GpuMesh3d>>`
     meshes: Vec<RcMesh>,
 
     /// List of components and their associated mesh indices
-    components: Vec<(usize, Label)>,
+    /// Each component is identified by its label.
+    /// The mesh index is the index into the `meshes` vector.
+    components: Vec<(Label, usize)>,
 }
 
 impl MeshOrdering {
+    /// Returns a slice of the unique meshes extracted from the shape set.
+    #[inline]
+    pub fn meshes(&self) -> &[RcMesh] {
+        &self.meshes
+    }
+
+    /// Returns a slice of the components and their associated mesh indices.
+    #[inline]
+    pub fn components(&self) -> &[(Label, usize)] {
+        &self.components
+    }
+
     /// Order components by the mesh they share
     fn make(shape_set: &ShapeSet<RcMesh>) -> Self {
         // How many objects and how many shapes/meshes are defined.
@@ -73,7 +131,7 @@ impl MeshOrdering {
             // Find all labels associated with this mesh
             shape_set.find_labels(hash, &mut labels);
             for &label in labels.iter() {
-                components.push((index, label));
+                components.push((label, index));
             }
         }
 
@@ -83,24 +141,49 @@ impl MeshOrdering {
 }
 
 /// Ordering of the components based on whenever they are inputs or outputs
-struct IoOrdering {
-    /// List of color sets
-    colors: Vec<ColorSet>,
-
+pub struct IoOrdering {
     /// List of components ordered by their IO type
+    /// Each component is identified by its label.
+    /// And we added extra definition such as the component operator and the color index.
     components: Vec<(Label, CompDef)>,
 
     /// Given a label, find the index of the component in the ordered list
+    /// This is used to generate the `Connect` struct.
     label_index: HashMap<Label, usize>,
 
     /// Range of inputs
+    /// Should be in the range `[0, len(in)[`.
     range_inputs: [usize; 2],
 
     /// Range of outputs
+    /// Should be in the range `[len(in), len(in) + len(out)[`.
     range_outputs: [usize; 2],
 }
 
 impl IoOrdering {
+    /// Number of components in the ordering
+    pub fn count(&self) -> usize {
+        self.components.len()
+    }
+
+    /// Returns a slice of the components ordered by their IO type.
+    #[inline]
+    pub fn components(&self) -> &[(Label, CompDef)] {
+        &self.components
+    }
+
+    /// Returns the range of inputs.
+    #[inline]
+    pub fn range_inputs(&self) -> [usize; 2] {
+        self.range_inputs
+    }
+
+    /// Returns the range of outputs.
+    #[inline]
+    pub fn range_outputs(&self) -> [usize; 2] {
+        self.range_outputs
+    }
+
     /// Order components by their IO connectivity
     fn make(config: &Config, islands: &HashMap<Label, IslandInfo>) -> Self {
         let count = islands.len();
@@ -162,7 +245,6 @@ impl IoOrdering {
 
         // Store the data found in a struct
         Self {
-            colors: config.colors.clone(),
             components,
             label_index,
             range_inputs,
@@ -172,16 +254,24 @@ impl IoOrdering {
 }
 
 /// The maximum number of connections a component can have
-const CNX_COUNT: usize = MAX_CNX as usize;
+pub const CNX_COUNT: usize = MAX_CNX as usize;
 
 /// Define how components are connected to each other
-struct Connect {
+pub struct Connect {
     /// For each component, we store at most `MAX_CNX` connections
     /// Components are ordered the same way as `IoOrdering`
+    /// First value is the number of connections defined
+    /// Second value is an array of connection indices, padded with `usize::MAX`
     buffer: Vec<(usize, [usize; CNX_COUNT])>,
 }
 
 impl Connect {
+    /// Returns a slice of the buffer.
+    #[inline]
+    pub fn buffer(&self) -> &[(usize, [usize; CNX_COUNT])] {
+        &self.buffer
+    }
+
     /// Construct a `Connect` buffer from the given `IoOrdering` and `Connectivity`
     fn make(io_order: &IoOrdering, connectivity: &Connectivity) -> Result<Self, Error> {
         // Buffer to compose
@@ -195,7 +285,7 @@ impl Connect {
             let node1 = connectivity.get_node_index(*label1)?;
 
             // Fixed size buffer to store the indexes of the components connected to this node
-            let mut connections = [0usize; CNX_COUNT];
+            let mut connections = [usize::MAX; CNX_COUNT];
 
             // Find all neighbors going toward the node
             let mut count = 0usize;

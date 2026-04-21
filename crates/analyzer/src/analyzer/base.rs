@@ -1,6 +1,9 @@
 use super::{Analysis, Connectivity, Error, Info, Label, LabeledModel, QuadsReader};
 use crate::analyzer::{IslandInfo, ShapeHash, ShapeSet, meshing::Mesher};
-use coppervox_common::{Model, Voxel, gridmap::gridmap::bounding_box::BoundingBox};
+use coppervox_common::{
+    Model, Voxel,
+    gridmap::{gridmap::bounding_box::BoundingBox, hashbrown::HashMap},
+};
 use petgraph::matrix_graph::{DiMatrix, NodeIndex};
 
 impl<M> Analysis<M> {
@@ -84,6 +87,12 @@ impl<M> Analysis<M> {
 }
 
 impl LabeledModel {
+    /// Get islands identified
+    #[inline]
+    pub fn islands(&self) -> &HashMap<Label, IslandInfo> {
+        &self.islands
+    }
+
     /// Get the info on the island from the label
     pub fn get_island_info(&self, label: Label) -> Result<&IslandInfo, Error> {
         if let Some(island) = self.islands.get(&label) {
