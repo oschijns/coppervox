@@ -8,13 +8,10 @@ pub mod processor;
 pub mod converter;
 
 use crate::{
-    loader::{
-        converter::{Processing, Rendering},
-        processor::{Connect, IoOrdering, MeshOrdering},
-    },
+    loader::converter::{Processing, Rendering},
     shader_const::Op,
 };
-use coppervox_analyzer::ShapeHash;
+use coppervox_analyzer::Label;
 use coppervox_common::{Model, Voxel};
 use coppervox_config::{Config, component::CompType};
 use kiss3d::{prelude::GpuMesh3d, procedural::RenderMesh};
@@ -23,14 +20,14 @@ use std::{cell::RefCell, rc::Rc};
 /// Error reporting when accessing information
 #[derive(thiserror::Error, Debug, Clone, Copy)]
 pub enum Error {
-    #[error("{0}")]
+    #[error("Analysis error: {0}")]
     Analysis(#[from] coppervox_analyzer::Error),
 
-    #[error("There is an inconsistency in the mesh associated with a component {0:#08x}")]
-    MeshInconsistency(ShapeHash),
-
     #[error("No configuration defined for the voxel type {0}")]
-    NoConfig(Voxel),
+    NoConfigVoxel(Voxel),
+
+    #[error("No configuration defined for the component label {0}")]
+    NoConfigLabel(Label),
 
     #[error("Node 0x{0:04x} in the incidence matrix is not mapped")]
     NodeIndexUnmapped(usize),
