@@ -1,6 +1,6 @@
 use crate::{
-    loader::processor::{CNX_COUNT, IoOrdering, MeshOrdering},
-    shader_const::ColorPreset,
+    loader::processor::{CNX_COUNT, Connect, IoOrdering, MeshOrdering},
+    shader_const::{ColorPreset, Op},
 };
 use coppervox_config::color::ColorSet;
 use kiss3d::{
@@ -49,13 +49,13 @@ impl Rendering {
         let mut instances = Vec::with_capacity(count);
 
         // Create an array for storing indexes of components and colors
-        let mut indexes = Vec::with_capacity(count);
+        //let mut indexes = Vec::with_capacity(count);
 
         // Convert the meshes
         for (mesh_index1, mesh) in order.meshes().iter().enumerate() {
             // Identify all components using this mesh
             instances.clear();
-            indexes.clear();
+            //indexes.clear();
             for (comp_index, (_, mesh_index2, color_index, bbox)) in
                 order.components().iter().enumerate()
             {
@@ -64,11 +64,22 @@ impl Rendering {
                     let mut inst = InstanceData3d::default();
                     let [x, y, z] = bbox.start;
                     inst.position = Vec3::new(x as f32, y as f32, z as f32);
+
+                    // HACK:
+                    // We need to provide two extra per-instance indexes:
+                    // - the index of the component (where to read the value from)
+                    // - the index of the color set to use to color it
+                    inst.color = Rgba {
+                        r: f32::from_bits(comp_index as u32),
+                        g: f32::from_bits(*color_index as u32),
+                        b: 0.0,
+                        a: 0.0,
+                    };
                     instances.push(inst);
 
                     // Store indexes of the component (where to read the value from)
                     // and the index of the color set to use to color it
-                    indexes.push((comp_index, *color_index));
+                    //indexes.push((comp_index, *color_index));
                 }
             }
 
@@ -90,9 +101,6 @@ impl Rendering {
             // Instantiate a Kiss3D object to render
             let mut object = Object3d::new(mesh, WHITE, texture.clone(), material.clone());
             object.set_instances(&instances);
-
-            // TODO: figure out how to provide extra per instance data
-            object.set_user_data(Box::new(indexes.clone()));
 
             // Store the generated object in the list to render
             objects.push(object);
@@ -154,7 +162,7 @@ impl Processing {
     }
 
     /// Convert the ordered data into raw buffers
-    pub fn make(order: &IoOrdering) -> Self {
+    pub fn make(order: &IoOrdering, connect: &Connect) -> Self {
         let count = order.count();
 
         // Allocate buffers
@@ -162,7 +170,21 @@ impl Processing {
         let mut operations = Vec::with_capacity(count);
         let mut initial_values = Vec::with_capacity(count);
 
-        // TODO : populate
+        // Iterate over both array to generate buffers
+        for ((_, comp_type), (count, conn)) in
+            order.components().iter().zip(connect.buffer().iter())
+        {
+            for &c in conn.iter() {
+                connections.push(c as u32);
+            }
+
+            // Convert component type to operation and combine it with connections count
+            let op = (Op::from_type(comp_type) as u32) | (*count as u32);
+            operations.push(op);
+
+            // Get the initial value for the component (if it is a constant)
+            initial_values.push(comp_type.start_value());
+        }
 
         Self {
             connections,
