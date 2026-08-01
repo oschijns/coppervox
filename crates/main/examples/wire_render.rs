@@ -1,8 +1,9 @@
 //! Build a tiny synthetic voxel model in memory, convert it into a logic
-//! circuit and a batched GPU mesh, run one simulation tick and render it
-//! off-screen. This proves the conversion pipeline (labeling -> meshing ->
-//! mesh batching -> GPU buffers) and the color-from-value render path work,
-//! without needing a window or any model/config files on disk.
+//! circuit and a batched GPU mesh, and display it live in a window: every
+//! frame steps the compute simulation and renders the result. This proves
+//! the conversion pipeline (labeling -> meshing -> mesh batching -> GPU
+//! buffers) and the color-from-value render path work, without needing any
+//! model/config files on disk.
 //!
 //! Layout (single row along X):
 //! - `(0,0,0)`             : a constant power source (always high)
@@ -12,8 +13,10 @@
 //!                           touching anything, so it stays low
 //!
 //! Wire A and wire B are disconnected but share the exact same local shape,
-//! so they should be batched into a single mesh / single draw call, while
-//! ending up with different colors once the simulation is stepped.
+//! so they are batched into a single mesh / single draw call, while ending
+//! up with different colors once the simulation is stepped - the source
+//! (red cube) and wire A (cyan bar) should read bright, wire B (also a cyan
+//! bar, sharing wire A's draw call) should stay dark.
 
 use coppervox_common::{Model, gridmap::GridMap};
 use coppervox_config::{
@@ -23,7 +26,14 @@ use coppervox_config::{
 };
 use coppervox_runner::{loader::Circuit, runner::Runner, shader_const::Mat4x4};
 use kiss3d::color::Rgba;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
+use winit::{
+    application::ApplicationHandler,
+    dpi::LogicalSize,
+    event::WindowEvent,
+    event_loop::{ActiveEventLoop, ControlFlow, EventLoop},
+    window::{Window, WindowId},
+};
 
 const VOXEL_SOURCE: u32 = 1;
 const VOXEL_WIRE: u32 = 2;
@@ -79,22 +89,223 @@ fn build_config() -> Config {
     Config { map, colors }
 }
 
-/// Column-major orthographic projection, matching WGSL's `mat4x4<f32>` layout
-fn orthographic(left: f32, right: f32, bottom: f32, top: f32, near: f32, far: f32) -> Mat4x4 {
-    let sx = 2.0 / (right - left);
-    let sy = 2.0 / (top - bottom);
-    let sz = 1.0 / (far - near);
+/// Column-major matrix multiply, matching WGSL's `mat4x4<f32>` layout
+fn mat4_mul(a: Mat4x4, b: Mat4x4) -> Mat4x4 {
+    let mut out = [[0.0f32; 4]; 4];
+    for col in 0..4 {
+        for row in 0..4 {
+            out[col][row] = (0..4).map(|k| a[k][row] * b[col][k]).sum();
+        }
+    }
+    out
+}
+
+fn sub(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn dot(a: [f32; 3], b: [f32; 3]) -> f32 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross(a: [f32; 3], b: [f32; 3]) -> [f32; 3] {
     [
-        [sx, 0.0, 0.0, 0.0],
-        [0.0, sy, 0.0, 0.0],
-        [0.0, 0.0, sz, 0.0],
-        [
-            -(right + left) / (right - left),
-            -(top + bottom) / (top - bottom),
-            -near / (far - near),
-            1.0,
-        ],
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
     ]
+}
+
+fn normalize(a: [f32; 3]) -> [f32; 3] {
+    let len = dot(a, a).sqrt();
+    [a[0] / len, a[1] / len, a[2] / len]
+}
+
+/// Right-handed view matrix, matching WGSL's `mat4x4<f32>` column-major layout
+fn look_at(eye: [f32; 3], target: [f32; 3], up: [f32; 3]) -> Mat4x4 {
+    let f = normalize(sub(target, eye));
+    let s = normalize(cross(f, up));
+    let u = cross(s, f);
+    [
+        [s[0], u[0], -f[0], 0.0],
+        [s[1], u[1], -f[1], 0.0],
+        [s[2], u[2], -f[2], 0.0],
+        [-dot(s, eye), -dot(u, eye), dot(f, eye), 1.0],
+    ]
+}
+
+/// Right-handed perspective projection with a 0..1 depth range, matching wgpu's clip space
+fn perspective(fovy_radians: f32, aspect: f32, near: f32, far: f32) -> Mat4x4 {
+    let cot = 1.0 / (fovy_radians * 0.5).tan();
+    [
+        [cot / aspect, 0.0, 0.0, 0.0],
+        [0.0, cot, 0.0, 0.0],
+        [0.0, 0.0, far / (near - far), -1.0],
+        [0.0, 0.0, (near * far) / (near - far), 0.0],
+    ]
+}
+
+fn camera(aspect: f32) -> Mat4x4 {
+    // Look at the middle of the scene from an angle, so the cubes read as 3D.
+    let view = look_at([6.0, 6.0, 12.0], [6.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let proj = perspective(45f32.to_radians(), aspect, 0.1, 100.0);
+    mat4_mul(proj, view)
+}
+
+const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+fn create_depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("depth"),
+        size: wgpu::Extent3d {
+            width: width.max(1),
+            height: height.max(1),
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: DEPTH_FORMAT,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    });
+    texture.create_view(&Default::default())
+}
+
+/// GPU resources that can only be created once we have a window (and, on
+/// some platforms, only after the app has been `resumed`).
+struct Gpu {
+    window: Arc<Window>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    surface: wgpu::Surface<'static>,
+    surface_config: wgpu::SurfaceConfiguration,
+    depth_view: wgpu::TextureView,
+    runner: Runner,
+}
+
+struct App {
+    circuit: Circuit,
+    gpu: Option<Gpu>,
+}
+
+impl ApplicationHandler for App {
+    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        if self.gpu.is_some() {
+            return;
+        }
+
+        let attributes = Window::default_attributes()
+            .with_title("CopperVox - wire_render example")
+            .with_inner_size(LogicalSize::new(800.0, 600.0));
+        let window = Arc::new(
+            event_loop
+                .create_window(attributes)
+                .expect("failed to create window"),
+        );
+
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let surface = instance
+            .create_surface(window.clone())
+            .expect("failed to create surface");
+        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::default(),
+            compatible_surface: Some(&surface),
+            force_fallback_adapter: false,
+        }))
+        .expect("no compatible GPU adapter found");
+        let (device, queue) =
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+                .expect("failed to open device");
+
+        let size = window.inner_size();
+        let caps = surface.get_capabilities(&adapter);
+        let surface_format = caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(caps.formats[0]);
+
+        let surface_config = wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: surface_format,
+            width: size.width.max(1),
+            height: size.height.max(1),
+            present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: caps.alpha_modes[0],
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
+        };
+        surface.configure(&device, &surface_config);
+
+        let depth_view = create_depth_view(&device, surface_config.width, surface_config.height);
+        let aspect = surface_config.width as f32 / surface_config.height as f32;
+        let projection = camera(aspect);
+
+        let runner = Runner::new(
+            &device,
+            &self.circuit,
+            &projection,
+            surface_format,
+            Some(DEPTH_FORMAT),
+        );
+
+        window.request_redraw();
+        self.gpu = Some(Gpu {
+            window,
+            device,
+            queue,
+            surface,
+            surface_config,
+            depth_view,
+            runner,
+        });
+    }
+
+    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let Some(gpu) = &mut self.gpu else {
+            return;
+        };
+
+        match event {
+            WindowEvent::CloseRequested => event_loop.exit(),
+
+            WindowEvent::Resized(size) => {
+                gpu.surface_config.width = size.width.max(1);
+                gpu.surface_config.height = size.height.max(1);
+                gpu.surface.configure(&gpu.device, &gpu.surface_config);
+                gpu.depth_view =
+                    create_depth_view(&gpu.device, gpu.surface_config.width, gpu.surface_config.height);
+            }
+
+            WindowEvent::RedrawRequested => {
+                let frame = match gpu.surface.get_current_texture() {
+                    Ok(frame) => frame,
+                    // The surface can go stale on resize/minimize; reconfigure and retry next frame.
+                    Err(_) => {
+                        gpu.surface.configure(&gpu.device, &gpu.surface_config);
+                        gpu.window.request_redraw();
+                        return;
+                    }
+                };
+                let view = frame.texture.create_view(&Default::default());
+
+                let mut encoder = gpu
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+                gpu.runner.step(&mut encoder);
+                gpu.runner.render(&mut encoder, &view, Some(&gpu.depth_view));
+                gpu.queue.submit(Some(encoder.finish()));
+                frame.present();
+                gpu.runner.advance();
+
+                gpu.window.request_redraw();
+            }
+
+            _ => {}
+        }
+    }
 }
 
 fn main() {
@@ -102,10 +313,9 @@ fn main() {
 
     let model = build_model();
     let config = build_config();
-
     let circuit = Circuit::make(&model, &config).expect("failed to build circuit");
-    let rendering = circuit.rendering();
 
+    let rendering = circuit.rendering();
     println!(
         "components: {} | vertices: {} | indices: {} | draw calls: {}",
         rendering.instances().len(),
@@ -121,69 +331,12 @@ fn main() {
         );
     }
 
-    // Set up a headless GPU device: no window or surface needed to prove the
-    // conversion pipeline produces valid, renderable GPU data.
-    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::default(),
-        compatible_surface: None,
-        force_fallback_adapter: false,
-    }))
-    .expect("no compatible GPU adapter found");
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
-        .expect("failed to open device");
+    let event_loop = EventLoop::new().expect("failed to create event loop");
+    event_loop.set_control_flow(ControlFlow::Poll);
 
-    const SIZE: u32 = 64;
-    let color_format = wgpu::TextureFormat::Rgba8UnormSrgb;
-    let depth_format = wgpu::TextureFormat::Depth32Float;
-
-    let extent = wgpu::Extent3d {
-        width: SIZE,
-        height: SIZE,
-        depth_or_array_layers: 1,
+    let mut app = App {
+        circuit,
+        gpu: None,
     };
-    let color_texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("color"),
-        size: extent,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: color_format,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        view_formats: &[],
-    });
-    let color_view = color_texture.create_view(&Default::default());
-
-    let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("depth"),
-        size: extent,
-        mip_level_count: 1,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: depth_format,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        view_formats: &[],
-    });
-    let depth_view = depth_texture.create_view(&Default::default());
-
-    let projection = orthographic(-1.0, 14.0, -2.0, 2.0, -10.0, 10.0);
-    let mut runner = Runner::new(&device, &circuit, &projection, color_format, Some(depth_format));
-
-    // Advance the simulation by one tick and render the resulting state.
-    // This exercises the full compute + render pipeline: if any buffer or
-    // bind group were wired up incorrectly, wgpu validation would panic here.
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-    runner.step(&mut encoder);
-    runner.render(&mut encoder, &color_view, Some(&depth_view));
-    queue.submit(Some(encoder.finish()));
-    runner.advance();
-
-    let processed = runner.read_processed(&device, &queue);
-    println!("processed values (IO order): {processed:?}");
-    println!(
-        "wire A (connected to source) and wire B (disconnected) share a mesh \
-         but should differ in value: source propagates {:#010x} into wire A, \
-         wire B stays at 0.",
-        u32::MAX
-    );
+    event_loop.run_app(&mut app).expect("event loop failed");
 }

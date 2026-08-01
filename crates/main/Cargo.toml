@@ -49,3 +49,6 @@ rand       = "0.10"
 
 # Block on async wgpu calls in examples
 pollster = "0.4"
+
+# Open a window for examples that render to screen (not used for the app itself, still Kiss3D there)
+winit = "0.30"
