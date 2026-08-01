@@ -1,0 +1,10 @@
+
+
+# Run the custom material example
+material:
+    cargo run --package coppervox_main --example material
+
+
+# Run the laboratory
+lab:
+    cargo run --package coppervox_main --example lab
