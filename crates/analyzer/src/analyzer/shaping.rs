@@ -16,6 +16,17 @@ impl<M> ShapeSet<M> {
             }
         }
 
+        // `grow_with` stores the last voxel index seen along each axis, but
+        // `dimensions`/`contains`/`bounded_iter` all treat `end` as exclusive.
+        // Without this correction, any island that is only one voxel thick
+        // along an axis ends up with a zero-sized dimension on that axis
+        // (`start == end`), and elongated islands are undercounted by one.
+        for island in model.islands.values_mut() {
+            for end in island.bounding_box.end.iter_mut() {
+                *end += 1;
+            }
+        }
+
         /* SECOND PASS */
         let count = model.islands.len();
 

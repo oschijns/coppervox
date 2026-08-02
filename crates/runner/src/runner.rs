@@ -7,6 +7,11 @@ mod bind_compute;
 /// Generate the storage buffers and appropriate binding groups for render pass
 mod bind_render;
 
+/// Build the compute and render pipelines and drive a simulation + draw loop
+mod pipeline;
+
+pub use pipeline::Runner;
+
 use wgpu::{BindGroup, BindGroupLayout, Buffer};
 
 /*
@@ -32,9 +37,6 @@ use wgpu::{BindGroup, BindGroupLayout, Buffer};
  * - totally handled by the GPU
  */
 
-/// Store data for running a logic circuit simulation
-pub struct Runner {}
-
 /// Allocate buffer to store the data
 pub struct AllocBuffers {
     /// Projection
@@ -46,8 +48,15 @@ pub struct AllocBuffers {
     /// Buffer containing the operations data
     operations: Buffer,
 
-    // Buffer containing the instances data
-    //instances: Buffer,
+    /// Buffer containing the concatenated vertices of every mesh
+    vertices: Buffer,
+
+    /// Buffer containing the concatenated indices of every mesh
+    indices: Buffer,
+
+    /// Buffer containing the per-instance data
+    instances: Buffer,
+
     /// Buffer containing the color definitions
     color_presets: Buffer,
 
@@ -78,7 +87,7 @@ pub struct RenderLayout {
     /// Layout for projection matrix
     layout_proj: BindGroupLayout,
 
-    /// Layout for components and colors
+    /// Layout for instances and colors
     layout_static: BindGroupLayout,
 
     /// Layout for process
@@ -90,9 +99,9 @@ pub struct RenderBinding {
     /// Binding for projection matrix
     bind_proj: BindGroup,
 
-    // Binding for components and colors
-    //bind_static: BindGroup,
-    //
-    /// Swappable bindings for processed buffer
+    /// Binding for instances and colors
+    bind_static: BindGroup,
+
+    /// Swappable bindings for the processed buffer
     ping_pong: [BindGroup; 2],
 }

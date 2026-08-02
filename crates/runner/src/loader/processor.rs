@@ -95,7 +95,7 @@ fn analyze(model: &Model) -> Analysis<RcMesh> {
     // Config for generating meshes from quad data
     const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
     let mut mesher = Mesher::new(QUAD_CONFIG, 0);
-    let mut reader = QuadDataReader::new(true, false);
+    let mut reader = QuadDataReader::new();
 
     // Analyse the model
     Analysis::build(model, &mut mesher, &mut reader)
@@ -237,6 +237,14 @@ impl IoOrdering {
     #[inline]
     pub fn range_outputs(&self) -> [usize; 2] {
         self.range_outputs
+    }
+
+    /// Get the index of a component in this ordering, given its label.
+    /// This is the index at which the component's value can be found
+    /// in the `processed` buffer computed by the compute shader.
+    #[inline]
+    pub fn index_of(&self, label: Label) -> Option<usize> {
+        self.label_index.get(&label).copied()
     }
 
     /// Order components by their IO connectivity

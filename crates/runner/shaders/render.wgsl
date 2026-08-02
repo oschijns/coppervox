@@ -13,14 +13,13 @@ struct InstanceData {
     /// Index of the color set to pull from the colors buffer
     colors_index: u32,
 
-    /// Offset where to read vertices indices from the index buffer
-    mesh_offset: u32,
-
-    /// Number of indices to read for a given mesh
-    mesh_length: u32,
+    /// Index of the value to read from the `processed` buffer.
+    /// Instances are grouped by mesh for batched rendering, so this index
+    /// does not generally match `instance_index` from the draw call.
+    process_index: u32,
 
     /// Complementary padding
-    _padding: u32,
+    _padding: vec2<u32>,
 }
 
 // Define the data related to a component
@@ -84,7 +83,7 @@ fn vertex_main(
     const MAX: u32 = ~0u;
 
     // Get the value of the component to deduce its color
-    let value = processed[instance_id];
+    let value = processed[comp.process_index];
     let colors = color_presets[comp.colors_index];
     switch value {
         case 0u: { out.color = colors.off; }

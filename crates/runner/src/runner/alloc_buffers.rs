@@ -5,82 +5,77 @@
  */
 
 use super::*;
-use crate::shader_const::{ColorPreset, Mat4x4};
-use coppervox_config::color::ColorSet;
-use kiss3d::prelude::*;
-use wgpu::BufferUsages;
+use crate::shader_const::{ColorPreset, InstanceData, Mat4x4, Vertex};
+use wgpu::{BufferUsages, Device, util::DeviceExt};
 
 impl AllocBuffers {
     /// Allocate buffers and fill them with the provided data
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        ctx: &Context,
+        device: &Device,
         projection: &Mat4x4,
         connections: &[u32],
         operations: &[u32],
-        //instances: &[InstanceData],
+        vertices: &[Vertex],
+        indices: &[u32],
+        instances: &[InstanceData],
         color_presets: &[ColorPreset],
         inits: &[u32],
     ) -> Self {
         let store = BufferUsages::STORAGE;
         let uni = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
         let io = BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST;
+        let vtx = BufferUsages::VERTEX;
+        let idx = BufferUsages::INDEX;
 
         Self {
-            projection: ctx.create_buffer_init(
-                Some("projection"),
-                bytemuck::bytes_of(projection),
-                uni,
-            ),
-            connections: ctx.create_buffer_init(
-                Some("connections"),
-                bytemuck::cast_slice(connections),
-                store,
-            ),
-            operations: ctx.create_buffer_init(
-                Some("operations"),
-                bytemuck::cast_slice(operations),
-                store,
-            ),
-            /*
-            instances: ctx.create_buffer_init(
-                Some("instances"),
-                bytemuck::cast_slice(instances),
-                store,
-            ),
-            */
-            color_presets: ctx.create_buffer_init(
-                Some("color_presets"),
-                bytemuck::cast_slice(color_presets),
-                store,
-            ),
+            projection: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("projection"),
+                contents: bytemuck::bytes_of(projection),
+                usage: uni,
+            }),
+            connections: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("connections"),
+                contents: bytemuck::cast_slice(connections),
+                usage: store,
+            }),
+            operations: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("operations"),
+                contents: bytemuck::cast_slice(operations),
+                usage: store,
+            }),
+            vertices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("vertices"),
+                contents: bytemuck::cast_slice(vertices),
+                usage: vtx,
+            }),
+            indices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("indices"),
+                contents: bytemuck::cast_slice(indices),
+                usage: idx,
+            }),
+            instances: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("instances"),
+                contents: bytemuck::cast_slice(instances),
+                usage: store,
+            }),
+            color_presets: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("color_presets"),
+                contents: bytemuck::cast_slice(color_presets),
+                usage: store,
+            }),
             ping_pong: [
-                ctx.create_buffer_init(Some("ping"), bytemuck::cast_slice(inits), io),
-                ctx.create_buffer_init(Some("pong"), bytemuck::cast_slice(inits), io),
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("ping"),
+                    contents: bytemuck::cast_slice(inits),
+                    usage: io,
+                }),
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("pong"),
+                    contents: bytemuck::cast_slice(inits),
+                    usage: io,
+                }),
             ],
         }
     }
-}
-
-/// Convert a color set into a data struct to be passed to the shader
-impl From<ColorSet> for ColorPreset {
-    fn from(set: ColorSet) -> Self {
-        Self {
-            off: convert_color(set.off),
-            low: convert_color(set.on_low),
-            high: convert_color(set.on_high),
-        }
-    }
-}
-
-/// Convert a RGBA byte into a RGBA float
-#[inline]
-fn convert_color(color: Rgba<u8>) -> [f32; 4] {
-    // remap values in the range [0, 255] to values in the range [0.0, 1.0]
-    const F: f32 = 1.0 / u8::MAX as f32;
-    macro_rules! c {
-        ($field:ident) => {
-            (color.$field as f32) * F
-        };
-    }
-    [c!(r), c!(g), c!(b), c!(a)]
 }

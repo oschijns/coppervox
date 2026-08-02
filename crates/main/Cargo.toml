@@ -16,6 +16,9 @@ thiserror.workspace = true
 # Common data structures
 coppervox_common = { path = "../common" }
 
+# Read configuration files (component types, colors)
+coppervox_config = { path = "../config" }
+
 # Import files and convert them into voxel models
 coppervox_importer = { path = "../importer" }
 
@@ -43,3 +46,6 @@ serde_json = "1.0"
 bytemuck   = { version = "1", features = ["derive"] }
 env_logger = "0.11"
 rand       = "0.10"
+
+# Block on async wgpu calls in examples
+pollster = "0.4"

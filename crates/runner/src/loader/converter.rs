@@ -1,133 +1,159 @@
 use crate::{
     loader::processor::{CNX_COUNT, Connect, IoOrdering, MeshOrdering},
-    shader_const::{ColorPreset, Op},
+    shader_const::{ColorPreset, InstanceData, Mat4x4, Op, Vertex},
 };
 use coppervox_config::color::ColorSet;
-use kiss3d::{
-    color::{Color, Rgba},
-    glamx::Vec3,
-    prelude::{GpuMesh3d, Material3d, Texture},
-    scene::{InstanceData3d, Object3d},
-};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::ops::Range;
 
-/// Store meshes and objects to be rendered by the GPU
+/// Store meshes and instances to be rendered by the GPU.
+///
+/// Meshes and instances are laid out so that all instances sharing a mesh
+/// are contiguous, allowing the whole scene to be rendered with one
+/// `draw_indexed` call per unique mesh shape (see [`draws`](Rendering::draws)),
+/// regardless of how many instances of that shape exist.
 pub struct Rendering {
-    /// Objects to be rendered as multiple instances sharing the same mesh
-    objects: Vec<Object3d>,
+    /// Vertices of every unique mesh, concatenated together
+    vertices: Vec<Vertex>,
+
+    /// Triangle indices of every unique mesh, concatenated together.
+    /// Indices are local to their mesh; `MeshDraw::base_vertex` offsets them.
+    indices: Vec<u32>,
+
+    /// Per-instance data, grouped by mesh
+    instances: Vec<InstanceData>,
+
+    /// One draw call per unique mesh actually in use
+    draws: Vec<MeshDraw>,
 
     /// Color sets usable on the GPU
     color_presets: Vec<ColorPreset>,
 }
 
-/// Material used for rendering
-pub type Material = Rc<RefCell<Box<dyn Material3d + 'static>>>;
+/// Parameters for a single `draw_indexed` call rendering every instance of one mesh
+#[derive(Clone)]
+pub struct MeshDraw {
+    /// Range within the global index buffer covering this mesh
+    pub indices: Range<u32>,
+
+    /// Offset within the global vertex buffer where this mesh's vertices start
+    pub base_vertex: i32,
+
+    /// Range within the global instance buffer covering the instances of this mesh
+    pub instances: Range<u32>,
+}
 
 impl Rendering {
     #[inline]
-    pub fn objects(&self) -> &Vec<Object3d> {
-        &self.objects
+    pub fn vertices(&self) -> &[Vertex] {
+        &self.vertices
     }
 
     #[inline]
-    pub fn color_presets(&self) -> &Vec<ColorPreset> {
+    pub fn indices(&self) -> &[u32] {
+        &self.indices
+    }
+
+    #[inline]
+    pub fn instances(&self) -> &[InstanceData] {
+        &self.instances
+    }
+
+    #[inline]
+    pub fn draws(&self) -> &[MeshDraw] {
+        &self.draws
+    }
+
+    #[inline]
+    pub fn color_presets(&self) -> &[ColorPreset] {
         &self.color_presets
     }
 
-    /// Convert the ordered data into `Object3d`
-    pub fn make(
-        order: MeshOrdering,
-        colors: &[ColorSet],
-        texture: Arc<Texture>,
-        material: Material,
-    ) -> Self {
-        // Allocate buffers
-        let count = order.components().len();
-        let mut objects = Vec::with_capacity(count);
+    /// Convert the ordered data into flat buffers ready to be uploaded to the GPU
+    pub fn make(mesh_order: &MeshOrdering, io_order: &IoOrdering, colors: &[ColorSet]) -> Self {
+        let mesh_count = mesh_order.meshes().len();
+        let comp_count = mesh_order.components().len();
 
-        // Create an instance for every components sharing the same mesh
-        let mut instances = Vec::with_capacity(count);
+        let mut vertices = Vec::new();
+        let mut indices = Vec::new();
+        let mut instances = Vec::with_capacity(comp_count);
+        let mut draws = Vec::with_capacity(mesh_count);
 
-        // Create an array for storing indexes of components and colors
-        //let mut indexes = Vec::with_capacity(count);
+        for (mesh_index, mesh) in mesh_order.meshes().iter().enumerate() {
+            let base_vertex = vertices.len() as i32;
+            let index_start = indices.len() as u32;
+            let instance_start = instances.len() as u32;
 
-        // Convert the meshes
-        for (mesh_index1, mesh) in order.meshes().iter().enumerate() {
-            // Identify all components using this mesh
-            instances.clear();
-            //indexes.clear();
-            for (comp_index, (_, mesh_index2, color_index, bbox)) in
-                order.components().iter().enumerate()
-            {
-                if mesh_index1 == *mesh_index2 {
-                    // Create an instance data for this component
-                    let mut inst = InstanceData3d::default();
-                    let [x, y, z] = bbox.start;
-                    inst.position = Vec3::new(x as f32, y as f32, z as f32);
-
-                    // HACK:
-                    // We need to provide two extra per-instance indexes:
-                    // - the index of the component (where to read the value from)
-                    // - the index of the color set to use to color it
-                    inst.color = Rgba {
-                        r: f32::from_bits(comp_index as u32),
-                        g: f32::from_bits(*color_index as u32),
-                        b: 0.0,
-                        a: 0.0,
-                    };
-                    instances.push(inst);
-
-                    // Store indexes of the component (where to read the value from)
-                    // and the index of the color set to use to color it
-                    //indexes.push((comp_index, *color_index));
+            for &(label, comp_mesh_index, color_index, bbox) in mesh_order.components() {
+                if comp_mesh_index != mesh_index {
+                    continue;
                 }
+
+                // Both orderings are derived from the same set of identified
+                // components, so every label found here must also be present
+                // in the IO ordering.
+                let process_index = io_order
+                    .index_of(label)
+                    .expect("label present in MeshOrdering must also be present in IoOrdering");
+
+                let [x, y, z] = bbox.start;
+                instances.push(InstanceData {
+                    transform: translation(x as f32, y as f32, z as f32),
+                    colors_index: color_index as u32,
+                    process_index: process_index as u32,
+                    _padding: [0; 2],
+                });
             }
 
-            // No components use this mesh, skip it
-            if instances.is_empty() {
+            let instance_count = instances.len() as u32 - instance_start;
+            if instance_count == 0 {
                 continue;
             }
 
-            // TODO: avoid cloning the render mesh and convert it in place
-            // Convert the mesh into a GPU mesh
-            let mesh = Rc::new(RefCell::new(GpuMesh3d::from_render_mesh(
-                mesh.as_ref().clone(),
-                false,
-            )));
+            vertices.extend_from_slice(&mesh.vertices);
+            indices.extend_from_slice(&mesh.indices);
 
-            // Default color for the object (white)
-            const WHITE: Color = Color::new(1.0, 1.0, 1.0, 1.0);
-
-            // Instantiate a Kiss3D object to render
-            let mut object = Object3d::new(mesh, WHITE, texture.clone(), material.clone());
-            object.set_instances(&instances);
-
-            // Store the generated object in the list to render
-            objects.push(object);
-        }
-
-        // Convert color sets to color presets for the shader
-        let mut color_presets = Vec::with_capacity(colors.len());
-        for color in colors {
-            color_presets.push(ColorPreset {
-                off: to_gpu_color(color.off),
-                low: to_gpu_color(color.on_low),
-                high: to_gpu_color(color.on_high),
+            draws.push(MeshDraw {
+                indices: index_start..(indices.len() as u32),
+                base_vertex,
+                instances: instance_start..(instance_start + instance_count),
             });
         }
 
+        let color_presets = colors
+            .iter()
+            .map(|set| ColorPreset {
+                off: to_gpu_color(set.off.r, set.off.g, set.off.b, set.off.a),
+                low: to_gpu_color(set.on_low.r, set.on_low.g, set.on_low.b, set.on_low.a),
+                high: to_gpu_color(set.on_high.r, set.on_high.g, set.on_high.b, set.on_high.a),
+            })
+            .collect();
+
         Self {
-            objects,
+            vertices,
+            indices,
+            instances,
+            draws,
             color_presets,
         }
     }
 }
 
-/// Converts an RGBA color to a GPU-compatible color array.
+/// Build a column-major translation matrix, matching WGSL's `mat4x4<f32>` layout
 #[inline]
-fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
-    let c = Rgba::<f32>::from(color);
-    [c.r, c.g, c.b, c.a]
+fn translation(x: f32, y: f32, z: f32) -> Mat4x4 {
+    [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [x, y, z, 1.0],
+    ]
+}
+
+/// Converts an 8-bits-per-channel color into a GPU-compatible float color
+#[inline]
+fn to_gpu_color(r: u8, g: u8, b: u8, a: u8) -> [f32; 4] {
+    const F: f32 = 1.0 / u8::MAX as f32;
+    [r as f32 * F, g as f32 * F, b as f32 * F, a as f32 * F]
 }
 
 /// Store buffers to be processed on the GPU

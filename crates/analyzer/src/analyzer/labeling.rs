@@ -123,8 +123,12 @@ impl LabeledModel {
         let label_count = current_label as usize;
         current_label = 1;
 
-        // reassign the labels based on the groups found within the disjoint set
+        // reassign the labels based on the groups found within the disjoint set.
+        // Label 0 means "no voxel" and is never inserted into the disjoint set
+        // (chunks are allocated with padding cells that stay at this default),
+        // so it must map to itself or the final pass below would panic on them.
         let mut remap = HashMap::<Label, Label>::with_capacity(label_count);
+        remap.insert(0, 0);
 
         // create a map where labels are associated with data describing an island
         let mut islands = HashMap::<Label, IslandInfo>::with_capacity(label_count);

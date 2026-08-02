@@ -67,11 +67,14 @@ impl Mesher {
         // The work buffer can be used to generate quads now.
         let area = [dox as u32, doy as u32, doz as u32];
         let runtime_shape = RuntimeShape::<u32, 3>::new(area);
+
+        // `greedy_quads` takes an inclusive max bound, one less than `area`
+        let max = area.map(|a| a - 1);
         greedy_quads(
             &self.work_buffer,
             &runtime_shape,
             [0, 0, 0],
-            area,
+            max,
             &self.config.faces,
             &mut self.quad_buffer,
         );

@@ -8,14 +8,17 @@ pub mod processor;
 pub mod converter;
 
 use crate::{
-    loader::converter::{Processing, Rendering},
+    loader::{
+        converter::{Processing, Rendering},
+        mesher::Mesh,
+        processor::OrderedData,
+    },
     shader_const::Op,
 };
 use coppervox_analyzer::Label;
 use coppervox_common::{Model, Voxel};
 use coppervox_config::{Config, component::CompType};
-use kiss3d::{prelude::GpuMesh3d, procedural::RenderMesh};
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 /// Error reporting when accessing information
 #[derive(thiserror::Error, Debug, Clone, Copy)]
@@ -37,10 +40,7 @@ pub enum Error {
 }
 
 /// Reference-counted mesh
-pub type RcMesh = Rc<RenderMesh>;
-
-/// Reference to a GPU mesh, held in an `Rc` and protected by a `RefCell`
-pub type RcGpuMesh = Rc<RefCell<GpuMesh3d>>;
+pub type RcMesh = Rc<Mesh>;
 
 /// Configuration loaded from the input files provided
 pub struct Loader {
@@ -66,6 +66,12 @@ impl Loader {
     pub fn new(model: Model, config: Config) -> Self {
         Self { model, config }
     }
+
+    /// Analyze the loaded model and build the circuit ready to be run and rendered
+    #[inline]
+    pub fn build(&self) -> Result<Circuit, Error> {
+        Circuit::make(&self.model, &self.config)
+    }
 }
 
 impl Circuit {
@@ -79,6 +85,15 @@ impl Circuit {
     #[inline]
     pub fn rendering(&self) -> &Rendering {
         &self.render
+    }
+
+    /// Analyze the model and build the circuit ready to be run and rendered
+    pub fn make(model: &Model, config: &Config) -> Result<Self, Error> {
+        let ordered = OrderedData::make(model, config)?;
+        let process = Processing::make(ordered.io_order(), ordered.connect());
+        let render = Rendering::make(ordered.meshes(), ordered.io_order(), &config.colors);
+
+        Ok(Self { process, render })
     }
 }
 

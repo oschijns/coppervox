@@ -1,9 +1,8 @@
 use super::*;
 use crate::shader_const::Layout;
-use kiss3d::prelude::*;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, Device, ShaderStages,
 };
 
 /// Define connections between outputs and inputs
@@ -20,36 +19,36 @@ pub const BIND_OUTPUTS: Layout = Layout::new(1, 1);
 
 impl ComputeLayout {
     /// Create the layouts for the compute shader
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(device: &Device) -> Self {
         Self {
-            layout_const: create_const_layout(ctx),
-            layout_mut: create_mut_layout(ctx),
+            layout_const: create_const_layout(device),
+            layout_mut: create_mut_layout(device),
         }
     }
 }
 
 impl ComputeBinding {
     /// Create the binding based on the buffer and layout that have been generated
-    pub fn new(ctx: &Context, layout: &ComputeLayout, buffers: &AllocBuffers) -> Self {
+    pub fn new(device: &Device, layout: &ComputeLayout, buffers: &AllocBuffers) -> Self {
         let [ping, pong] = &buffers.ping_pong;
         Self {
             bind_const: create_const_bind(
-                ctx,
+                device,
                 &layout.layout_const,
                 &buffers.connections,
                 &buffers.operations,
             ),
             ping_pong: [
-                create_mut_bind(ctx, "ping", &layout.layout_mut, ping, pong),
-                create_mut_bind(ctx, "pong", &layout.layout_mut, pong, ping),
+                create_mut_bind(device, "ping", &layout.layout_mut, ping, pong),
+                create_mut_bind(device, "pong", &layout.layout_mut, pong, ping),
             ],
         }
     }
 }
 
 /// Create a bind group layout for the two constant buffers `connections` and `operations`
-fn create_const_layout(ctx: &Context) -> BindGroupLayout {
-    ctx.create_bind_group_layout(&BindGroupLayoutDescriptor {
+fn create_const_layout(device: &Device) -> BindGroupLayout {
+    device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: Some("constants"),
         entries: &[
             BindGroupLayoutEntry {
@@ -77,15 +76,16 @@ fn create_const_layout(ctx: &Context) -> BindGroupLayout {
 }
 
 /// Create a bind group layout for the two mutable ping-pong buffers
-fn create_mut_layout(ctx: &Context) -> BindGroupLayout {
-    ctx.create_bind_group_layout(&BindGroupLayoutDescriptor {
+fn create_mut_layout(device: &Device) -> BindGroupLayout {
+    device.create_bind_group_layout(&BindGroupLayoutDescriptor {
         label: Some("mutables"),
         entries: &[
             BindGroupLayoutEntry {
                 binding: BIND_INPUTS.binding,
-                visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: false },
+                    // `compute.wgsl` declares `inputs` as `var<storage, read>`
+                    ty: BufferBindingType::Storage { read_only: true },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -93,7 +93,7 @@ fn create_mut_layout(ctx: &Context) -> BindGroupLayout {
             },
             BindGroupLayoutEntry {
                 binding: BIND_OUTPUTS.binding,
-                visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Storage { read_only: false },
                     has_dynamic_offset: false,
@@ -107,12 +107,12 @@ fn create_mut_layout(ctx: &Context) -> BindGroupLayout {
 
 /// Create a bind group for the constant storage buffers
 fn create_const_bind(
-    ctx: &Context,
+    device: &Device,
     layout: &BindGroupLayout,
     connections: &Buffer,
     operations: &Buffer,
 ) -> BindGroup {
-    ctx.create_bind_group(&BindGroupDescriptor {
+    device.create_bind_group(&BindGroupDescriptor {
         label: Some("constants"),
         layout,
         entries: &[
@@ -130,13 +130,13 @@ fn create_const_bind(
 
 /// Create a bind group for the mutable ping-pong buffers
 fn create_mut_bind(
-    ctx: &Context,
+    device: &Device,
     label: &str,
     layout: &BindGroupLayout,
     inputs: &Buffer,
     outputs: &Buffer,
 ) -> BindGroup {
-    ctx.create_bind_group(&BindGroupDescriptor {
+    device.create_bind_group(&BindGroupDescriptor {
         label: Some(label),
         layout,
         entries: &[

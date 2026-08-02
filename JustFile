@@ -8,3 +8,8 @@ material:
 # Run the laboratory
 lab:
     cargo run --package coppervox_main --example lab
+
+
+# Run the laboratory
+test:
+    cargo run --package coppervox_main --example wire_render
