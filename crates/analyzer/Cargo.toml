@@ -23,7 +23,7 @@ bitvec = "1"
 # Generate mesh from voxel model
 block-mesh = "0.2"
 ndshape = "0.3"
-itertools = "0.14"
+itertools = "0.15"
 
 # Incidence matrix representing a directed graph
 petgraph = "0.8"

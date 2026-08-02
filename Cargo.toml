@@ -24,4 +24,5 @@ thiserror = "2.0"
 
 # Render the scene using Kiss3D
 # [Kiss3D](https://github.com/dimforge/kiss3d/)
-kiss3d = { version = "0.39", features = ["serde"] }
+kiss3d = { version = "0.45", features = ["serde"] }
+wgpu = "29.0"

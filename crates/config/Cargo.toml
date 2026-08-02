@@ -18,7 +18,8 @@ coppervox_common = { path = "../common" }
 
 # Load a config containing Kiss3D data structures
 kiss3d.workspace = true
+wgpu.workspace = true
 
 # Read config file
 serde = { version = "1.0", features = ["derive"] }
-regex = "1.12"
+regex = "1.13"

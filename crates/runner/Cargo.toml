@@ -24,13 +24,12 @@ coppervox_analyzer = { path = "../analyzer" }
 
 # Read config file
 serde = { version = "1.0", features = ["derive"] }
-regex = "1.12"
+regex = "1.13"
 
 
 # Render the scene using Kiss3D
 kiss3d.workspace = true
-
+wgpu.workspace = true
 
 # Pass data to WGSL
-wgpu = "25"
 bytemuck = { version = "1", features = ["derive"] }
