@@ -1,6 +1,9 @@
 /// Build mesh from quad data
 pub mod mesher;
 
+/// Build a single mesh from quad data
+pub mod uni_mesher;
+
 /// Process the model and extract data in the order expected by the GPU
 pub mod processor;
 
