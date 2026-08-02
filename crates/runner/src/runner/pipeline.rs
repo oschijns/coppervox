@@ -6,8 +6,8 @@ use crate::{
 use wgpu::{
     ColorTargetState, ColorWrites, CommandEncoder, ComputePassDescriptor, ComputePipeline,
     ComputePipelineDescriptor, DepthStencilState, Device, FragmentState, IndexFormat,
-    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PrimitiveState,
-    Queue, RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
+    MultisampleState, PipelineCompilationOptions, PipelineLayoutDescriptor, PrimitiveState, Queue,
+    RenderPassColorAttachment, RenderPassDepthStencilAttachment, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, TextureFormat, TextureView, VertexBufferLayout,
     VertexState, VertexStepMode, vertex_attr_array,
 };
@@ -108,6 +108,7 @@ impl Runner {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: depth_view.map(|view| RenderPassDepthStencilAttachment {
                 view,
@@ -119,6 +120,7 @@ impl Runner {
             }),
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         pass.set_pipeline(&self.render_pipeline);
@@ -129,7 +131,11 @@ impl Runner {
         pass.set_index_buffer(self.alloc.indices.slice(..), IndexFormat::Uint32);
 
         for draw in &self.draws {
-            pass.draw_indexed(draw.indices.clone(), draw.base_vertex, draw.instances.clone());
+            pass.draw_indexed(
+                draw.indices.clone(),
+                draw.base_vertex,
+                draw.instances.clone(),
+            );
         }
     }
 
@@ -161,7 +167,10 @@ impl Runner {
         let slice = staging.slice(..);
         slice.map_async(wgpu::MapMode::Read, |_| {});
         device
-            .poll(wgpu::PollType::Wait)
+            .poll(wgpu::PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
             .expect("failed to poll the device while waiting for the buffer to be mapped");
 
         let result = {
@@ -179,8 +188,8 @@ fn create_compute_pipeline(device: &Device, layout: &ComputeLayout) -> ComputePi
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("compute"),
-        bind_group_layouts: &[&layout.layout_const, &layout.layout_mut],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(&layout.layout_const), Some(&layout.layout_mut)],
+        immediate_size: 0,
     });
 
     device.create_compute_pipeline(&ComputePipelineDescriptor {
@@ -205,11 +214,11 @@ fn create_render_pipeline(
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("render"),
         bind_group_layouts: &[
-            &layout.layout_proj,
-            &layout.layout_static,
-            &layout.layout_process,
+            Some(&layout.layout_proj),
+            Some(&layout.layout_static),
+            Some(&layout.layout_process),
         ],
-        push_constant_ranges: &[],
+        immediate_size: 0,
     });
 
     let vertex_buffer = VertexBufferLayout {
@@ -230,8 +239,8 @@ fn create_render_pipeline(
         primitive: PrimitiveState::default(),
         depth_stencil: depth_format.map(|format| DepthStencilState {
             format,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::Less),
             stencil: wgpu::StencilState::default(),
             bias: wgpu::DepthBiasState::default(),
         }),
@@ -246,7 +255,7 @@ fn create_render_pipeline(
                 write_mask: ColorWrites::ALL,
             })],
         }),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

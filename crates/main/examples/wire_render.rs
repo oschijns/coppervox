@@ -11,12 +11,20 @@
 //!                           touching the source, so it ends up driven high
 //! - `(10,0,0)..(12,0,0)`  : "wire B", the same shape as wire A but not
 //!                           touching anything, so it stays low
+//! - `(14,0,0)`, `(15,0,0)`: two adjacent, cross-connected `Nand` gates. Since
+//!                           each has exactly one incoming connection (the
+//!                           other gate), `Nand` degenerates into a bitwise
+//!                           NOT, so each gate computes the inverse of the
+//!                           other's previous value every tick - a two-gate
+//!                           ring oscillator, purely from the existing logic
+//!                           ops, that flips high/low every simulation step.
 //!
 //! Wire A and wire B are disconnected but share the exact same local shape,
 //! so they are batched into a single mesh / single draw call, while ending
 //! up with different colors once the simulation is stepped - the source
 //! (red cube) and wire A (cyan bar) should read bright, wire B (also a cyan
-//! bar, sharing wire A's draw call) should stay dark.
+//! bar, sharing wire A's draw call) should stay dark. The oscillator pair
+//! (magenta cubes, sharing the source's cube mesh) should blink together.
 
 use coppervox_common::{Model, gridmap::GridMap};
 use coppervox_config::{
@@ -26,7 +34,11 @@ use coppervox_config::{
 };
 use coppervox_runner::{loader::Circuit, runner::Runner, shader_const::Mat4x4};
 use kiss3d::color::Rgba;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use winit::{
     application::ApplicationHandler,
     dpi::LogicalSize,
@@ -37,6 +49,8 @@ use winit::{
 
 const VOXEL_SOURCE: u32 = 1;
 const VOXEL_WIRE: u32 = 2;
+const VOXEL_OSC_A: u32 = 3;
+const VOXEL_OSC_B: u32 = 4;
 
 fn build_model() -> Model {
     let mut model: Model = GridMap::new([16, 16, 16]);
@@ -50,6 +64,11 @@ fn build_model() -> Model {
     model.set::<usize>(&[10, 0, 0], VOXEL_WIRE);
     model.set::<usize>(&[11, 0, 0], VOXEL_WIRE);
     model.set::<usize>(&[12, 0, 0], VOXEL_WIRE);
+
+    // Two different voxel types so they stay separate islands despite
+    // touching (same-typed adjacent voxels would merge into one island).
+    model.set::<usize>(&[14, 0, 0], VOXEL_OSC_A);
+    model.set::<usize>(&[15, 0, 0], VOXEL_OSC_B);
 
     model
 }
@@ -70,6 +89,20 @@ fn build_config() -> Config {
             color_index: 1,
         },
     );
+    map.insert(
+        VOXEL_OSC_A,
+        CompDef {
+            comp_type: CompType::Nand,
+            color_index: 2,
+        },
+    );
+    map.insert(
+        VOXEL_OSC_B,
+        CompDef {
+            comp_type: CompType::Nand,
+            color_index: 2,
+        },
+    );
 
     let colors = vec![
         // source: dim red when off, bright yellow when high
@@ -83,6 +116,12 @@ fn build_config() -> Config {
             off: Rgba::new(10, 10, 30, 255),
             on_low: Rgba::new(40, 80, 160, 255),
             on_high: Rgba::new(80, 220, 255, 255),
+        },
+        // oscillator: dark purple when off, bright magenta when high
+        ColorSet {
+            off: Rgba::new(25, 5, 30, 255),
+            on_low: Rgba::new(120, 30, 140, 255),
+            on_high: Rgba::new(255, 60, 255, 255),
         },
     ];
 
@@ -147,12 +186,17 @@ fn perspective(fovy_radians: f32, aspect: f32, near: f32, far: f32) -> Mat4x4 {
 
 fn camera(aspect: f32) -> Mat4x4 {
     // Look at the middle of the scene from an angle, so the cubes read as 3D.
-    let view = look_at([6.0, 6.0, 12.0], [6.0, 0.0, 0.0], [0.0, 1.0, 0.0]);
+    let view = look_at([7.5, 7.0, 20.0], [7.5, 0.0, 0.0], [0.0, 1.0, 0.0]);
     let proj = perspective(45f32.to_radians(), aspect, 0.1, 100.0);
     mat4_mul(proj, view)
 }
 
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
+/// How often to step the simulation. The window redraws far more often than
+/// this (every frame); decoupling the two is what makes the oscillator's
+/// toggling visible as a blink instead of a 60Hz+ flicker.
+const STEP_INTERVAL: Duration = Duration::from_millis(400);
 
 fn create_depth_view(device: &wgpu::Device, width: u32, height: u32) -> wgpu::TextureView {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -182,6 +226,9 @@ struct Gpu {
     surface_config: wgpu::SurfaceConfiguration,
     depth_view: wgpu::TextureView,
     runner: Runner,
+
+    /// Earliest time the simulation is allowed to step again
+    next_step: Instant,
 }
 
 struct App {
@@ -204,7 +251,7 @@ impl ApplicationHandler for App {
                 .expect("failed to create window"),
         );
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
         let surface = instance
             .create_surface(window.clone())
             .expect("failed to create surface");
@@ -260,6 +307,7 @@ impl ApplicationHandler for App {
             surface_config,
             depth_view,
             runner,
+            next_step: Instant::now(),
         });
     }
 
@@ -275,30 +323,60 @@ impl ApplicationHandler for App {
                 gpu.surface_config.width = size.width.max(1);
                 gpu.surface_config.height = size.height.max(1);
                 gpu.surface.configure(&gpu.device, &gpu.surface_config);
-                gpu.depth_view =
-                    create_depth_view(&gpu.device, gpu.surface_config.width, gpu.surface_config.height);
+                gpu.depth_view = create_depth_view(
+                    &gpu.device,
+                    gpu.surface_config.width,
+                    gpu.surface_config.height,
+                );
             }
 
             WindowEvent::RedrawRequested => {
                 let frame = match gpu.surface.get_current_texture() {
-                    Ok(frame) => frame,
-                    // The surface can go stale on resize/minimize; reconfigure and retry next frame.
-                    Err(_) => {
+                    wgpu::CurrentSurfaceTexture::Success(frame) => frame,
+                    wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+                        // Still presentable this frame; reconfigure before the next one.
+                        gpu.surface.configure(&gpu.device, &gpu.surface_config);
+                        frame
+                    }
+                    // Occluded/timeout are transient; outdated/lost need a reconfigure.
+                    // Either way, skip this frame and retry on the next redraw.
+                    wgpu::CurrentSurfaceTexture::Occluded
+                    | wgpu::CurrentSurfaceTexture::Timeout => {
+                        gpu.window.request_redraw();
+                        return;
+                    }
+                    wgpu::CurrentSurfaceTexture::Outdated | wgpu::CurrentSurfaceTexture::Lost => {
                         gpu.surface.configure(&gpu.device, &gpu.surface_config);
                         gpu.window.request_redraw();
                         return;
                     }
+                    wgpu::CurrentSurfaceTexture::Validation => {
+                        panic!("validation error while acquiring the next surface texture")
+                    }
                 };
                 let view = frame.texture.create_view(&Default::default());
+
+                // Only step the simulation on its own cadence; still render
+                // every frame so the window stays smooth and responsive.
+                let now = Instant::now();
+                let stepped = now >= gpu.next_step;
 
                 let mut encoder = gpu
                     .device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-                gpu.runner.step(&mut encoder);
-                gpu.runner.render(&mut encoder, &view, Some(&gpu.depth_view));
+                if stepped {
+                    gpu.runner.step(&mut encoder);
+                    gpu.next_step = now + STEP_INTERVAL;
+                }
+                gpu.runner
+                    .render(&mut encoder, &view, Some(&gpu.depth_view));
                 gpu.queue.submit(Some(encoder.finish()));
                 frame.present();
-                gpu.runner.advance();
+                // `advance` must pair with `step`: it swaps to the buffer
+                // `render` just displayed, so the next `step` reads from it.
+                if stepped {
+                    gpu.runner.advance();
+                }
 
                 gpu.window.request_redraw();
             }
@@ -326,7 +404,10 @@ fn main() {
     for (i, draw) in rendering.draws().iter().enumerate() {
         println!(
             "  draw {i}: mesh indices {}..{}, base_vertex {}, instances {}..{}",
-            draw.indices.start, draw.indices.end, draw.base_vertex, draw.instances.start,
+            draw.indices.start,
+            draw.indices.end,
+            draw.base_vertex,
+            draw.instances.start,
             draw.instances.end,
         );
     }
@@ -334,9 +415,6 @@ fn main() {
     let event_loop = EventLoop::new().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Poll);
 
-    let mut app = App {
-        circuit,
-        gpu: None,
-    };
+    let mut app = App { circuit, gpu: None };
     event_loop.run_app(&mut app).expect("event loop failed");
 }
