@@ -5,7 +5,7 @@
  */
 
 use super::*;
-use crate::shader_const::{ColorPreset, Mat4x4};
+use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
 use coppervox_config::color::ColorSet;
 use kiss3d::prelude::*;
 use wgpu::BufferUsages;
@@ -17,7 +17,7 @@ impl AllocBuffers {
         projection: &Mat4x4,
         connections: &[u32],
         operations: &[u32],
-        //instances: &[InstanceData],
+        instances_data: &[InstanceData],
         color_presets: &[ColorPreset],
         inits: &[u32],
     ) -> Self {
@@ -41,13 +41,11 @@ impl AllocBuffers {
                 bytemuck::cast_slice(operations),
                 store,
             ),
-            /*
-            instances: ctx.create_buffer_init(
-                Some("instances"),
-                bytemuck::cast_slice(instances),
+            instances_data: ctx.create_buffer_init(
+                Some("instances_data"),
+                bytemuck::cast_slice(instances_data),
                 store,
             ),
-            */
             color_presets: ctx.create_buffer_init(
                 Some("color_presets"),
                 bytemuck::cast_slice(color_presets),

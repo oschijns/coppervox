@@ -10,8 +10,8 @@ use wgpu::{
 /// The singular projection matrix of the camera
 pub const BIND_PROJECTION: Layout = Layout::new(0, 0);
 
-/// Transforms and types of the components
-pub const BIND_TRANSFORMS: Layout = Layout::new(1, 0);
+/// Instance data (translation & color index) of the components
+pub const BIND_INSTANCES_DATA: Layout = Layout::new(1, 0);
 
 /// Color presets
 pub const BIND_COLOR_PRESETS: Layout = Layout::new(1, 1);
@@ -36,14 +36,12 @@ impl RenderBinding {
         let [ping, pong] = &buffers.ping_pong;
         Self {
             bind_proj: create_proj_bind(ctx, &layout.layout_proj, &buffers.projection),
-            /*
             bind_static: create_static_bind(
                 ctx,
                 &layout.layout_static,
-                &buffers.instances,
+                &buffers.instances_data,
                 &buffers.color_presets,
             ),
-            */
             ping_pong: [
                 create_process_bind(ctx, "ping", &layout.layout_process, pong),
                 create_process_bind(ctx, "pong", &layout.layout_process, ping),
@@ -75,7 +73,7 @@ fn create_static_layout(ctx: &Context) -> BindGroupLayout {
         label: Some("statics"),
         entries: &[
             BindGroupLayoutEntry {
-                binding: BIND_TRANSFORMS.binding,
+                binding: BIND_INSTANCES_DATA.binding,
                 visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Storage { read_only: true },
@@ -131,20 +129,20 @@ fn create_proj_bind(ctx: &Context, layout: &BindGroupLayout, projection: &Buffer
 fn create_static_bind(
     ctx: &Context,
     layout: &BindGroupLayout,
-    transforms: &Buffer,
-    colors: &Buffer,
+    instances_data: &Buffer,
+    color_presets: &Buffer,
 ) -> BindGroup {
     ctx.create_bind_group(&BindGroupDescriptor {
         label: Some("statics"),
         layout,
         entries: &[
             BindGroupEntry {
-                binding: BIND_TRANSFORMS.binding,
-                resource: transforms.as_entire_binding(),
+                binding: BIND_INSTANCES_DATA.binding,
+                resource: instances_data.as_entire_binding(),
             },
             BindGroupEntry {
                 binding: BIND_COLOR_PRESETS.binding,
-                resource: colors.as_entire_binding(),
+                resource: color_presets.as_entire_binding(),
             },
         ],
     })

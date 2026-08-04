@@ -21,31 +21,23 @@ pub type Mat4x4 = [[f32; 4]; 4];
 /// WGSL vec4<f32>
 pub type Vec4 = [f32; 4];
 
-/*
+/// WGSL vec3<f32>
+pub type Vec3 = [f32; 3];
+
 /// Instance data
 #[repr(C)]
-#[derive(NoUninit, Default, Clone, Copy)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceData {
-    /// Transform to apply to the mesh
-    pub(crate) transform: Mat4x4,
+    /// Translation to apply to the mesh
+    pub(crate) translate: Vec3,
 
     /// Index of the color set to pull from the colors buffer
     pub(crate) colors_index: u32,
-
-    /// Offset where to read vertices indices from the index buffer
-    pub(crate) mesh_offset: u32,
-
-    /// Number of indices to read for a given mesh
-    pub(crate) mesh_length: u32,
-
-    /// Complementary padding
-    pub(crate) _padding: u32,
 }
-*/
 
 /// Colors for a component type
 #[repr(C)]
-#[derive(NoUninit, Default, Clone, Copy)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct ColorPreset {
     /// Color used when the component is fully off (0)
     pub(crate) off: Vec4,

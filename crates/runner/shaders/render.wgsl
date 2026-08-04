@@ -7,20 +7,11 @@
 
 // Per-object data structure
 struct InstanceData {
-    /// Transform to apply to the mesh
-    transform: mat4x4<f32>,
+    /// Translation to apply to the mesh
+    translation: vec3<f32>,
 
     /// Index of the color set to pull from the colors buffer
     colors_index: u32,
-
-    /// Offset where to read vertices indices from the index buffer
-    mesh_offset: u32,
-
-    /// Number of indices to read for a given mesh
-    mesh_length: u32,
-
-    /// Complementary padding
-    _padding: u32,
 }
 
 // Define the data related to a component
@@ -54,41 +45,41 @@ var<storage, read> processed: array<u32>;
 // Vertex input
 struct ToVertex {
     @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    @location(1) normal  : vec3<f32>,
+
+    // The UV data is hacked to store indexes
+    @location(2) uv: vec2<u32>,
 }
 
 // Vertex output / Fragment input
 struct ToFragment {
     @builtin(position) position: vec4<f32>,
-    @location(0) normal: vec4<f32>,
-    @location(1) color: vec4<f32>,
+    @location(0)       normal  : vec4<f32>,
+    @location(1)       color   : vec4<f32>,
 }
 
 // Process the vertices of the mesh
 @vertex
-fn vertex_main(
-    vertex: ToVertex,
-    @builtin(instance_index) instance_id: u32
-) -> ToFragment {
+fn vertex_main(vertex: ToVertex) -> ToFragment {
     var out: ToFragment;
 
     // Get per-instance data
-    let comp = instances[instance_id];
+    let comp = instances[vertex.uv.x];
 
     // Position the vertex relative to the camera
-    let trs = projection * comp.transform;
-    out.position = trs * vec4<f32>(vertex.position, 1.0);
-    out.normal = trs * vec4<f32>(vertex.normal, 0.0);
+    let trs = projection;
+    out.position = trs * vec4<f32>(comp.translation + vertex.position, 1.0);
+    out.normal   = trs * vec4<f32>(vertex.normal, 0.0);
 
     // Maximum possible value for a component
     const MAX: u32 = ~0u;
 
     // Get the value of the component to deduce its color
-    let value = processed[instance_id];
+    let value = processed[vertex.uv.y];
     let colors = color_presets[comp.colors_index];
     switch value {
-        case 0u: { out.color = colors.off; }
-        case 1u: { out.color = colors.low; }
+        case  0u: { out.color = colors.off;  }
+        case  1u: { out.color = colors.low;  }
         case MAX: { out.color = colors.high; }
         default: {
             let t = f32(value) / f32(MAX);
