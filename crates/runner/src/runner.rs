@@ -7,6 +7,11 @@ mod bind_compute;
 /// Generate the storage buffers and appropriate binding groups for render pass
 mod bind_render;
 
+/// Execute the runner
+mod exec;
+
+use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
+use kiss3d::resource::PipelineCache;
 use wgpu::{BindGroup, BindGroupLayout, Buffer};
 
 /*
@@ -32,8 +37,50 @@ use wgpu::{BindGroup, BindGroupLayout, Buffer};
  * - totally handled by the GPU
  */
 
+/// Define the runner pipeline
+pub struct Runner {
+    /// GPU Pipeline
+    pipeline: PipelineCache,
+
+    /// Data to construct the runner
+    data: RunnerData,
+
+    /// flip-flop latch
+    flip_flop: bool,
+}
+
+/// Data that have been extracted and analyzed from the voxel model to be submitted to the GPU
+pub struct RunnerData {
+    /// Camera projection matrix
+    projection: Mat4x4,
+
+    /// Connections between the components
+    connections: Vec<u32>,
+
+    /// Operators of the component (and number of connections)
+    operations: Vec<u32>,
+
+    /// Per component data (translation & color index)
+    instances_data: Vec<InstanceData>,
+
+    /// Color presets (to be accessed by the color index)
+    color_presets: Vec<ColorPreset>,
+
+    /// Initial values for the components (necessary for constant components)
+    inits: Vec<u32>,
+}
+
 /// Store data for running a logic circuit simulation
-pub struct Runner {}
+pub struct RunnerGpuData {
+    /// Buffer allocated in video memory
+    buffers: AllocBuffers,
+
+    /// Bind groups for the compute pass
+    compute: ComputeBinding,
+
+    /// Bind groups for the render pass
+    render: RenderBinding,
+}
 
 /// Allocate buffer to store the data
 pub struct AllocBuffers {

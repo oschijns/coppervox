@@ -1,5 +1,3 @@
-use bytemuck::NoUninit;
-
 /// Size of workgroups
 pub const WORKGROUP: u32 = 256;
 
