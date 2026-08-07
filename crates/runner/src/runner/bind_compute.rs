@@ -3,7 +3,8 @@ use crate::shader_const::Layout;
 use kiss3d::prelude::*;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages,
+    BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ComputePipeline,
+    ComputePipelineDescriptor, PipelineLayoutDescriptor, ShaderStages,
 };
 
 /// Define connections between outputs and inputs
@@ -26,6 +27,27 @@ impl ComputeLayout {
             layout_mut: create_mut_layout(ctx),
         }
     }
+}
+
+/// Load the compute shader and build the pipeline used to run one simulation tick
+pub fn create_compute_pipeline(ctx: &Context, layout: &ComputeLayout) -> ComputePipeline {
+    let shader = ctx.create_shader_module(
+        Some("logic_compute_shader"),
+        include_str!("../../shaders/compute.wgsl"),
+    );
+    let pipeline_layout = ctx.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some("logic_compute_pipeline_layout"),
+        bind_group_layouts: &[Some(&layout.layout_const), Some(&layout.layout_mut)],
+        immediate_size: 0,
+    });
+    ctx.device.create_compute_pipeline(&ComputePipelineDescriptor {
+        label: Some("logic_compute_pipeline"),
+        layout: Some(&pipeline_layout),
+        module: &shader,
+        entry_point: Some("process"),
+        compilation_options: Default::default(),
+        cache: None,
+    })
 }
 
 impl ComputeBinding {
@@ -82,10 +104,19 @@ fn create_mut_layout(ctx: &Context) -> BindGroupLayout {
         label: Some("mutables"),
         entries: &[
             BindGroupLayoutEntry {
+                // Only the compute pass ever binds these buffers with write
+                // access; `VERTEX_FRAGMENT` here would require the
+                // `VERTEX_WRITABLE_STORAGE` feature for no reason (the
+                // render pass reads the same buffer through the separate,
+                // read-only `processed` bind group instead).
+                //
+                // `compute.wgsl` declares `inputs` as `read` only (only
+                // `outputs` is `read_write`); the layout must match exactly
+                // or pipeline creation fails validation.
                 binding: BIND_INPUTS.binding,
-                visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
-                    ty: BufferBindingType::Storage { read_only: false },
+                    ty: BufferBindingType::Storage { read_only: true },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -93,7 +124,7 @@ fn create_mut_layout(ctx: &Context) -> BindGroupLayout {
             },
             BindGroupLayoutEntry {
                 binding: BIND_OUTPUTS.binding,
-                visibility: ShaderStages::COMPUTE | ShaderStages::VERTEX_FRAGMENT,
+                visibility: ShaderStages::COMPUTE,
                 ty: BindingType::Buffer {
                     ty: BufferBindingType::Storage { read_only: false },
                     has_dynamic_offset: false,

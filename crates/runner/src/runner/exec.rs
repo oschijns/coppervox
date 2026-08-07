@@ -1,7 +1,11 @@
-use crate::runner::{
-    AllocBuffers, ComputeBinding, ComputeLayout, RenderBinding, RenderLayout, Runner,
-    RunnerGpuData,
-    bind_render::{BIND_INSTANCES_DATA, BIND_PROCESSED, BIND_PROJECTION},
+use crate::{
+    runner::{
+        AllocBuffers, ComputeBinding, ComputeLayout, RenderBinding, RenderLayout, Runner,
+        RunnerGpuData,
+        bind_compute::{self, BIND_CONNECTIONS, BIND_INPUTS},
+        bind_render::{self, BIND_INSTANCES_DATA, BIND_PROCESSED, BIND_PROJECTION},
+    },
+    shader_const::WORKGROUP,
 };
 use kiss3d::{
     camera::Camera3d,
@@ -29,20 +33,72 @@ impl Material3d for Runner {
         Box::new(RunnerGpuData::new(&ctx, buffers))
     }
 
-    /// Prepare the material (if necessary?)
+    /// Run one simulation tick before the scene is drawn
     fn prepare(
         &mut self,
         pass: usize,
-        transform: Pose3,
-        scale: Vec3,
+        _transform: Pose3,
+        _scale: Vec3,
         camera: &mut dyn Camera3d,
-        lights: &LightCollection,
-        data: &ObjectData3d,
+        _lights: &LightCollection,
+        _data: &ObjectData3d,
         gpu_data: &mut dyn GpuData,
-        viewport_width: u32,
-        viewport_height: u32,
+        _viewport_width: u32,
+        _viewport_height: u32,
     ) {
+        // A stereo camera calls `prepare` once per eye; only tick the
+        // simulation once per frame, on the first pass.
+        if pass != 0 {
+            return;
+        }
+
         let ctx = Context::get();
+
+        // Downcast gpu_data to our specific type
+        let gpu_data = gpu_data
+            .as_any_mut()
+            .downcast_mut::<RunnerGpuData>()
+            .expect("Runner requires RunnerGpuData");
+
+        // Track the moving camera. `render.wgsl` expects a single combined
+        // view-projection matrix: there is no per-object model matrix, since
+        // instance translations are applied directly to the vertex position.
+        let (view, proj) = camera.view_transform_pair(pass);
+        let view_proj = proj * view.to_mat4();
+        ctx.write_buffer(
+            &gpu_data.buffers.projection,
+            0,
+            bytemuck::bytes_of(&view_proj.to_cols_array_2d()),
+        );
+
+        // Pick the same buffer `render()` will read from once it flips `flip_flop`
+        let flip_flop = if self.flip_flop { 1 } else { 0 };
+
+        // Number of components to process, and the workgroups needed to cover them
+        let count = self.data.operations.len() as u32;
+        let workgroups = count.div_ceil(WORKGROUP);
+
+        // The render pass encoder used by kiss3d isn't handed to `prepare`, so we
+        // record and submit the compute dispatch on its own command buffer. It is
+        // submitted to the queue here, strictly before kiss3d submits its own frame
+        // encoder at the end of `render_3d`, so the GPU is guaranteed to run this
+        // compute pass first.
+        let mut encoder = ctx.create_command_encoder(Some("logic_compute"));
+        {
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("logic_compute_pass"),
+                timestamp_writes: None,
+            });
+            compute_pass.set_pipeline(&gpu_data.compute_pipeline);
+            compute_pass.set_bind_group(BIND_CONNECTIONS.group, &gpu_data.compute.bind_const, &[]);
+            compute_pass.set_bind_group(
+                BIND_INPUTS.group,
+                &gpu_data.compute.ping_pong[flip_flop],
+                &[],
+            );
+            compute_pass.dispatch_workgroups(workgroups, 1, 1);
+        }
+        ctx.submit([encoder.finish()]);
     }
 
     /// Render the circuit
@@ -103,7 +159,7 @@ impl Material3d for Runner {
         self.flip_flop = !self.flip_flop;
 
         // Prepare the pipeline to render the circuit
-        let pipeline = self.pipeline.get(context.sample_count);
+        let pipeline = gpu_data.render_pipeline.get(context.sample_count);
         render_pass.set_pipeline(&pipeline);
         render_pass.set_bind_group(BIND_PROJECTION.group, &gpu_data.render.bind_proj, &[]);
         render_pass.set_bind_group(BIND_INSTANCES_DATA.group, &gpu_data.render.bind_static, &[]);
@@ -127,12 +183,16 @@ impl RunnerGpuData {
     pub fn new(ctx: &Context, buffers: AllocBuffers) -> Self {
         let layout_compute = ComputeLayout::new(ctx);
         let layout_render = RenderLayout::new(ctx);
+        let compute_pipeline = bind_compute::create_compute_pipeline(ctx, &layout_compute);
+        let render_pipeline = bind_render::create_render_pipeline(ctx, &layout_render);
         let compute = ComputeBinding::new(ctx, &layout_compute, &buffers);
         let render = RenderBinding::new(ctx, &layout_render, &buffers);
         Self {
             buffers,
             compute,
+            compute_pipeline,
             render,
+            render_pipeline,
         }
     }
 }

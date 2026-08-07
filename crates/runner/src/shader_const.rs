@@ -33,6 +33,16 @@ pub struct InstanceData {
     pub(crate) colors_index: u32,
 }
 
+impl InstanceData {
+    /// Create the per-instance data for one component
+    pub fn new(translate: Vec3, colors_index: u32) -> Self {
+        Self {
+            translate,
+            colors_index,
+        }
+    }
+}
+
 /// Colors for a component type
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -45,6 +55,13 @@ pub struct ColorPreset {
 
     /// Color used when the component has high power (u32::MAX)
     pub(crate) high: Vec4,
+}
+
+impl ColorPreset {
+    /// Create a color preset for a component type
+    pub fn new(off: Vec4, low: Vec4, high: Vec4) -> Self {
+        Self { off, low, high }
+    }
 }
 
 #[repr(u32)]

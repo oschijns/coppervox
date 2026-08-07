@@ -1,5 +1,5 @@
 /// Define constants as defined in the shader
-mod shader_const;
+pub mod shader_const;
 
 /// Loader for building logic circuits
 pub mod loader;
