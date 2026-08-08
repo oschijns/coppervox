@@ -1,11 +1,12 @@
 /// Load Magica Voxel files
-mod magica;
+pub mod magica;
 
 // Load Goxel files
-//mod goxel;
+//pub mod goxel;
 
 /// Load GIMP files
-mod gimp;
+pub mod gimp;
 
-// re-export functions
-//pub use magica::convert_magica;
+// re-export crates
+pub use coppervox_common as common;
+pub use dot_vox;

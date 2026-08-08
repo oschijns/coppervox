@@ -1,4 +1,17 @@
 use crate::{
+    loader::processor::{CNX_COUNT, Connect, IoOrdering},
+    shader_const::Op,
+};
+use kiss3d::color::Rgba;
+
+/*
+ * TODO:
+ * Rendering struct was designed for the instancing approach.
+ * It is no longer relevant in the unified approach.
+ */
+
+/*
+use crate::{
     loader::processor::{CNX_COUNT, Connect, IoOrdering, MeshOrdering},
     shader_const::{ColorPreset, Op},
 };
@@ -6,7 +19,7 @@ use coppervox_config::color::ColorSet;
 use kiss3d::{
     color::{Color, Rgba},
     glamx::Vec3,
-    prelude::{GpuMesh3d, Material3d, Texture},
+    resource::{GpuMesh3d, Material3d, Texture},
     scene::{InstanceData3d, Object3d},
 };
 use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -36,7 +49,7 @@ impl Rendering {
 
     /// Convert the ordered data into `Object3d`
     pub fn make(
-        order: MeshOrdering,
+        order: &MeshOrdering,
         colors: &[ColorSet],
         texture: Arc<Texture>,
         material: Material,
@@ -122,10 +135,10 @@ impl Rendering {
         }
     }
 }
-
+// */
 /// Converts an RGBA color to a GPU-compatible color array.
 #[inline]
-fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
+pub fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
     let c = Rgba::<f32>::from(color);
     [c.r, c.g, c.b, c.a]
 }
@@ -133,31 +146,31 @@ fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
 /// Store buffers to be processed on the GPU
 pub struct Processing {
     /// Connections between nodes in the processing graph
-    connections: Vec<u32>,
+    pub connections: Vec<u32>,
 
     /// Operations and number of connections where
     /// the high byte is the type of operation to apply and
     /// the three low bytes are the number of connections.
-    operations: Vec<u32>,
+    pub operations: Vec<u32>,
 
     /// Initial values for the nodes in the processing graph.
     /// This buffer will initialize both `inputs` and `outputs` in the shader.
-    initial_values: Vec<u32>,
+    pub initial_values: Vec<u32>,
 }
 
 impl Processing {
     #[inline]
-    pub fn connections(&self) -> &Vec<u32> {
+    pub fn connections(&self) -> &[u32] {
         &self.connections
     }
 
     #[inline]
-    pub fn operations(&self) -> &Vec<u32> {
+    pub fn operations(&self) -> &[u32] {
         &self.operations
     }
 
     #[inline]
-    pub fn initial_values(&self) -> &Vec<u32> {
+    pub fn initial_values(&self) -> &[u32] {
         &self.initial_values
     }
 

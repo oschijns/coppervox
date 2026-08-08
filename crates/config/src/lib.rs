@@ -9,6 +9,9 @@ use coppervox_common::Voxel;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+// re-export crates
+pub use coppervox_common as common;
+
 /// Configuration loaded from a text file such as TOML
 #[derive(Debug, Deserialize)]
 pub struct Config {

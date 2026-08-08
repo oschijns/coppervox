@@ -1,5 +1,13 @@
+/// Import voxel models
+mod import;
+
+/// Construct the circuit and mesh
+mod construct;
+
+use crate::construct::Construct;
+use clap::Parser;
 use kiss3d::prelude::*;
-use std::path::PathBuf;
+use std::{path::PathBuf, process::exit};
 
 /// Command line interface
 #[derive(Debug, clap::Parser)]
@@ -14,17 +22,29 @@ pub struct Cli {
 
 #[kiss3d::main]
 async fn main() {
-    let mut window = Window::new("CopperVox").await;
+    let cli = Cli::parse();
 
-    let mut camera = OrbitCamera3d::new(Vec3::new(0.0, 0.0, 6.0), Vec3::ZERO);
+    // Build the circuit first
+    let construct = match Construct::new(&cli) {
+        Ok(construct) => construct,
+        Err(error) => {
+            eprintln!("Failed to load the model:\n{}", error);
+            exit(1);
+        }
+    };
+
+    // Setup the rendering of the scene
+    let mut window = Window::new("CopperVox").await;
+    let mut camera = OrbitCamera3d::new(Vec3::new(0.0, 2.0, 6.0), Vec3::ZERO);
     let mut scene = SceneNode3d::empty();
     scene
         .add_light(Light::point(100.0))
         .set_position(Vec3::new(0.0, 10.0, 10.0));
 
-    let rot = Quat::from_axis_angle(Vec3::Y, 0.014);
+    // Supply the circuit to the scene
+    scene
+        .add_render_mesh(construct.mesh, Vec3::ONE)
+        .set_material(construct.material);
 
-    while window.render_3d(&mut scene, &mut camera).await {
-        //c.rotate(rot);
-    }
+    while window.render_3d(&mut scene, &mut camera).await {}
 }

@@ -13,7 +13,11 @@ pub struct Remapper([CVVoxel; SIZE]);
 impl Default for Remapper {
     #[inline]
     fn default() -> Self {
-        Self([0; SIZE])
+        let mut b = [0; SIZE];
+        for i in 0..SIZE {
+            b[i] = i as CVVoxel;
+        }
+        Self(b)
     }
 }
 

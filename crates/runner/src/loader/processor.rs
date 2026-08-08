@@ -1,5 +1,5 @@
-use super::{Error, RcMesh, mesher::QuadDataReader};
-use crate::shader_const::MAX_CNX;
+use super::{Error, uni_mesher::UniQuadDataReader};
+use crate::{loader::uni_mesher::MeshIndices, shader_const::MAX_CNX};
 use coppervox_analyzer::{
     Analysis, Connectivity, IslandInfo, Label, Mesher, ShapeSet,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
@@ -14,6 +14,7 @@ use coppervox_config::{
     color::ColorIndex,
     component::{CompDef, CompType, Interface},
 };
+use std::rc::Rc;
 
 /*
  * When processing the analysis, we want to define two ordering of the components.
@@ -91,11 +92,11 @@ impl OrderedData {
 }
 
 /// Build an analysis of the model, using the given mesher and reader
-fn analyze(model: &Model) -> Analysis<RcMesh> {
+fn analyze(model: &Model) -> Analysis<Rc<MeshIndices>> {
     // Config for generating meshes from quad data
     const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
     let mut mesher = Mesher::new(QUAD_CONFIG, 0);
-    let mut reader = QuadDataReader::new(true, false);
+    let mut reader = UniQuadDataReader::new();
 
     // Analyse the model
     Analysis::build(model, &mut mesher, &mut reader)
@@ -134,10 +135,8 @@ impl IdentComp {
 
 /// Ordering of components by the mesh they share
 pub struct MeshOrdering {
-    // TODO: maybe render meshes should be directly be converted to `Rc<RefCell<GpuMesh3d>>`
-    /// List of unique meshes extracted from the shape set
-    /// Each mesh will be converted to `Rc<RefCell<GpuMesh3d>>`
-    meshes: Vec<RcMesh>,
+    // TODO: with the unified approach, we have only one Mesh to deal with
+    meshes: Vec<Rc<MeshIndices>>,
 
     /// List of components and their associated mesh indices
     /// Each component is identified by its label.
@@ -152,7 +151,7 @@ pub type MeshIndex = usize;
 impl MeshOrdering {
     /// Returns a slice of the unique meshes extracted from the shape set.
     #[inline]
-    pub fn meshes(&self) -> &[RcMesh] {
+    pub fn meshes(&self) -> &[Rc<MeshIndices>] {
         &self.meshes
     }
 
@@ -163,7 +162,7 @@ impl MeshOrdering {
     }
 
     /// Order components by the mesh they share
-    fn make(ident: &IdentComp, shape_set: &ShapeSet<RcMesh>) -> Result<Self, Error> {
+    fn make(ident: &IdentComp, shape_set: &ShapeSet<Rc<MeshIndices>>) -> Result<Self, Error> {
         // How many objects and how many shapes/meshes are defined.
         let count_obj = shape_set.count_objects();
         let count_shp = shape_set.count_shapes();
@@ -177,6 +176,7 @@ impl MeshOrdering {
 
         // Find all labels associated with each mesh
         for (index, (&hash, mesh)) in shape_set.iter_hashes_meshes().enumerate() {
+            // TODO: rework this part
             meshes.push(mesh.clone());
 
             // Find all labels associated with this mesh
