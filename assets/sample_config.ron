@@ -1,13 +1,15 @@
-Config({
-    0: {
-        type: "or",
-        color: {
-            off: {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0,
-            }
-        },
-    }
-})
+Config(
+    map: {
+        0: (
+            type: Or,
+            color_index: 0,
+        ),
+    },
+    colors: [
+        (
+            off: "#000000",
+            low: "#333333",
+            high: "#ffffff",
+        )
+    ],
+)

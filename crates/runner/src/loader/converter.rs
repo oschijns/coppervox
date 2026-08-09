@@ -6,8 +6,8 @@ use crate::{
     shader_const::{ColorPreset, InstanceData, Op},
 };
 use coppervox_config::color::ColorSet;
-use kiss3d::resource::{GpuMesh3d, Material3d, Texture};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use kiss3d::{procedural::RenderMesh, resource::Material3d};
+use std::{cell::RefCell, rc::Rc};
 
 /*
  * TODO:
@@ -18,7 +18,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 /// Store meshes and objects to be rendered by the GPU
 pub struct Rendering {
     /// GPU mesh to render
-    pub gpu_mesh: Rc<RefCell<GpuMesh3d>>,
+    pub render_mesh: RenderMesh,
 
     /// Instances data usable on the GPU
     pub instances_data: Vec<InstanceData>,
@@ -33,8 +33,8 @@ pub type Material = Rc<RefCell<Box<dyn Material3d + 'static>>>;
 impl Rendering {
     /// GPU mesh to render
     #[inline]
-    pub fn gpu_mesh(&self) -> Rc<RefCell<GpuMesh3d>> {
-        self.gpu_mesh.clone()
+    pub fn render_mesh(&self) -> &RenderMesh {
+        &self.render_mesh
     }
 
     /// Extra data for components
@@ -79,12 +79,8 @@ impl Rendering {
             ));
         }
 
-        // Generate the render mesh
-        let mesh = quad_data.to_mesh(indices, extra);
-        let gpu_mesh = Rc::new(RefCell::new(GpuMesh3d::from_render_mesh(mesh, false)));
-
         Self {
-            gpu_mesh,
+            render_mesh: quad_data.to_mesh(indices, extra),
             instances_data,
             color_presets,
         }

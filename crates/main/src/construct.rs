@@ -1,6 +1,8 @@
-use crate::{Cli, import::import_model};
+use crate::{
+    Cli,
+    import::{import_model, load_config},
+};
 use coppervox_runner::{
-    config::Config,
     loader::{
         converter::{Processing, Rendering},
         processor::OrderedData,
@@ -8,8 +10,8 @@ use coppervox_runner::{
     runner::{Runner, RunnerData},
     shader_const::Mat4x4,
 };
-use kiss3d::resource::{GpuMesh3d, Material3d};
-use std::{cell::RefCell, fs, rc::Rc};
+use kiss3d::{procedural::RenderMesh, resource::Material3d};
+use std::{cell::RefCell, rc::Rc};
 
 /// Identify matrix to prepare the projection matrix for the camera
 const IDENTITY_MATRIX: Mat4x4 = [
@@ -22,7 +24,7 @@ const IDENTITY_MATRIX: Mat4x4 = [
 /// Circuit data to construct
 pub struct Construct {
     /// Mesh depicting the circuit
-    pub gpu_mesh: Rc<RefCell<GpuMesh3d>>,
+    pub render_mesh: RenderMesh,
 
     /// Material based on a Runner
     pub material: Rc<RefCell<Box<dyn Material3d + 'static>>>,
@@ -36,15 +38,12 @@ impl Construct {
         let model = import_model(&cli.model, CHUNK_DIM)?;
 
         // Load the configuration provided
-        let content = fs::read_to_string(&cli.config)?;
-        let config: Config = toml::from_str(&content)?;
+        let config = load_config(&cli.config)?;
 
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = OrderedData::make(&model, &config)?;
         let process = Processing::make(ordered.io_order(), ordered.connect());
         let render = Rendering::make(ordered.quad_data(), ordered.meshes(), &config.colors);
-
-        let gpu_mesh = render.gpu_mesh().clone();
 
         // Group runner data
         let data = RunnerData::new(
@@ -56,10 +55,11 @@ impl Construct {
             process.initial_values,
         );
 
-        let material = Rc::new(RefCell::new(
-            Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
-        ));
-
-        Ok(Self { gpu_mesh, material })
+        Ok(Self {
+            render_mesh: render.render_mesh,
+            material: Rc::new(RefCell::new(
+                Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
+            )),
+        })
     }
 }

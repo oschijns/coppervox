@@ -43,8 +43,9 @@ async fn main() {
 
     // Supply the circuit to the scene
     scene
-        .add_mesh(construct.gpu_mesh, Vec3::ONE)
+        .add_render_mesh(construct.render_mesh, Vec3::ONE)
         .set_material(construct.material);
 
+    // main loop
     while window.render_3d(&mut scene, &mut camera).await {}
 }

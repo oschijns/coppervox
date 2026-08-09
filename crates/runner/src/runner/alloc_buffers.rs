@@ -6,7 +6,6 @@
 
 use super::*;
 use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
-use coppervox_config::color::ColorSet;
 use kiss3d::prelude::*;
 use wgpu::BufferUsages;
 
