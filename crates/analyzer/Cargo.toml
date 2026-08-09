@@ -25,5 +25,8 @@ block-mesh = "0.2"
 ndshape = "0.3"
 itertools = "0.15"
 
+# TODO: replace current meshing solution with this one
+binary-greedy-meshing = "0.5"
+
 # Incidence matrix representing a directed graph
 petgraph = "0.8"

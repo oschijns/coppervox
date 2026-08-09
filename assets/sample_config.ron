@@ -1,13 +1,40 @@
 Config(
     map: {
-        0: (
+        1: (
             type: Or,
             color_index: 0,
+        ),
+        2: (
+            type: Or,
+            color_index: 1,
+        ),
+        3: (
+            type: Or,
+            color_index: 2,
+        ),
+        189: (
+            type: Or,
+            color_index: 3,
         ),
     },
     colors: [
         (
-            off: "#000000",
+            off: "#ff0000",
+            low: "#333333",
+            high: "#ff0000",
+        ),
+        (
+            off: "#00ff00",
+            low: "#333333",
+            high: "#00ff00",
+        ),
+        (
+            off: "#0000ff",
+            low: "#333333",
+            high: "#0000ff",
+        ),
+        (
+            off: "#ffffff",
             low: "#333333",
             high: "#ffffff",
         )
