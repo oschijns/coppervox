@@ -2,17 +2,13 @@ use crate::{Cli, import::import_model};
 use coppervox_runner::{
     config::Config,
     loader::{
-        converter::{Processing, to_gpu_color},
+        converter::{Processing, Rendering},
         processor::OrderedData,
-        uni_mesher::UniQuadDataReader,
     },
     runner::{Runner, RunnerData},
-    shader_const::{ColorPreset, InstanceData, Mat4x4},
+    shader_const::Mat4x4,
 };
-use kiss3d::{
-    procedural::RenderMesh,
-    resource::{Material3d, Texture},
-};
+use kiss3d::resource::{GpuMesh3d, Material3d};
 use std::{cell::RefCell, fs, rc::Rc};
 
 /// Identify matrix to prepare the projection matrix for the camera
@@ -26,7 +22,7 @@ const IDENTITY_MATRIX: Mat4x4 = [
 /// Circuit data to construct
 pub struct Construct {
     /// Mesh depicting the circuit
-    pub mesh: RenderMesh,
+    pub gpu_mesh: Rc<RefCell<GpuMesh3d>>,
 
     /// Material based on a Runner
     pub material: Rc<RefCell<Box<dyn Material3d + 'static>>>,
@@ -46,34 +42,17 @@ impl Construct {
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = OrderedData::make(&model, &config)?;
         let process = Processing::make(ordered.io_order(), ordered.connect());
+        let render = Rendering::make(ordered.quad_data(), ordered.meshes(), &config.colors);
 
-        // Convert color presets
-        let color_presets = config
-            .colors
-            .iter()
-            .map(|c| ColorPreset::from(*c))
-            .collect::<Vec<_>>();
-
-        // Helper for building the mesh data
-        let mut mesher = UniQuadDataReader::new();
-
-        // Instance data with translation and color index
-        let mut instances_data = Vec::with_capacity(process.operations().len());
-        for (_, (_, _, color_index, bbox)) in ordered.meshes().components().iter().enumerate() {
-            let [x, y, z] = bbox.start;
-            instances_data.push(InstanceData::new(
-                [x as f32, y as f32, z as f32],
-                *color_index as u32,
-            ));
-        }
+        let gpu_mesh = render.gpu_mesh().clone();
 
         // Group runner data
         let data = RunnerData::new(
             IDENTITY_MATRIX,
             process.connections,
             process.operations,
-            instances_data,
-            color_presets,
+            render.instances_data,
+            render.color_presets,
             process.initial_values,
         );
 
@@ -81,6 +60,6 @@ impl Construct {
             Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
         ));
 
-        todo!()
+        Ok(Self { gpu_mesh, material })
     }
 }

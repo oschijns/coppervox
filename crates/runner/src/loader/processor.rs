@@ -14,7 +14,7 @@ use coppervox_config::{
     color::ColorIndex,
     component::{CompDef, CompType, Interface},
 };
-use std::rc::Rc;
+use std::{rc::Rc, slice::Iter};
 
 /*
  * When processing the analysis, we want to define two ordering of the components.
@@ -44,6 +44,9 @@ pub struct OrderedData {
 
     /// Connections between components
     connect: Connect,
+
+    /// Quad mesher storing the vertices data
+    quad_data: UniQuadDataReader,
 }
 
 impl OrderedData {
@@ -71,10 +74,17 @@ impl OrderedData {
         &self.connect
     }
 
+    /// Access the quad reader which contains the raw vertex data that was collected
+    #[inline]
+    pub fn quad_data(&self) -> &UniQuadDataReader {
+        &self.quad_data
+    }
+
     /// Process the data loaded to obtain meshes and buffers
     pub fn make(model: &Model, config: &Config) -> Result<Self, Error> {
         // First analyze the model to identify shapes and connectivity
-        let analysis = analyze(model);
+        let mut quad_reader = UniQuadDataReader::new();
+        let analysis = analyze(model, &mut quad_reader);
 
         // Then convert the analysis into data usable by the GPU
         let ident = IdentComp::make(config, analysis.labeled_model().islands())?;
@@ -87,19 +97,19 @@ impl OrderedData {
             mesh_order,
             io_order,
             connect,
+            quad_data: quad_reader,
         })
     }
 }
 
 /// Build an analysis of the model, using the given mesher and reader
-fn analyze(model: &Model) -> Analysis<Rc<MeshIndices>> {
+fn analyze(model: &Model, reader: &mut UniQuadDataReader) -> Analysis<Rc<MeshIndices>> {
     // Config for generating meshes from quad data
     const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
     let mut mesher = Mesher::new(QUAD_CONFIG, 0);
-    let mut reader = UniQuadDataReader::new();
 
     // Analyse the model
-    Analysis::build(model, &mut mesher, &mut reader)
+    Analysis::build(model, &mut mesher, reader)
 }
 
 /// Identifies the type and color of a component based on its label instead of its voxel value
@@ -161,6 +171,15 @@ impl MeshOrdering {
         &self.components
     }
 
+    /// Create an iterator over the components and their meshes
+    #[inline]
+    pub fn iter_components<'m>(&'m self) -> IterComp<'m> {
+        IterComp {
+            components: self.components.iter(),
+            meshes: &self.meshes,
+        }
+    }
+
     /// Order components by the mesh they share
     fn make(ident: &IdentComp, shape_set: &ShapeSet<Rc<MeshIndices>>) -> Result<Self, Error> {
         // How many objects and how many shapes/meshes are defined.
@@ -192,6 +211,32 @@ impl MeshOrdering {
 
         // return the ordering
         Ok(Self { meshes, components })
+    }
+}
+
+/// Iterator over the components and their meshes
+pub struct IterComp<'m> {
+    /// Iterator over components data
+    components: Iter<'m, (Label, MeshIndex, ColorIndex, BoundingBox<3>)>,
+
+    /// List of meshes
+    meshes: &'m [Rc<MeshIndices>],
+}
+
+impl<'m> Iterator for IterComp<'m> {
+    type Item = (Label, Rc<MeshIndices>, ColorIndex, BoundingBox<3>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((label, mesh_index, color_index, bbox)) = self.components.next() {
+            Some((
+                *label,
+                self.meshes[*mesh_index].clone(),
+                *color_index,
+                *bbox,
+            ))
+        } else {
+            None
+        }
     }
 }
 

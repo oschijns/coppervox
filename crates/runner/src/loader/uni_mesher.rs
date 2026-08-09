@@ -74,7 +74,7 @@ impl UniQuadDataReader {
     }
 
     /// Convert the read data into a single render mesh
-    pub fn to_mesh(&self, indices: Vec<[[u32; 3]; 3]>, extra: Vec<[u32; 2]>) -> Rc<RenderMesh> {
+    pub fn to_mesh(&self, indices: Vec<[[u32; 3]; 3]>, extra: Vec<[u32; 2]>) -> RenderMesh {
         // Compose coordinates buffer
         let coords = self
             .coords
@@ -102,12 +102,12 @@ impl UniQuadDataReader {
             .collect();
 
         // Generate a mesh for Kiss3D
-        Rc::new(RenderMesh::new(
+        RenderMesh::new(
             coords,
             Some(normals),
             Some(uvs),
             Some(IndexBuffer::Split(indices)),
-        ))
+        )
     }
 }
 

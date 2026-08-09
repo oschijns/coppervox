@@ -58,27 +58,3 @@ impl AllocBuffers {
         }
     }
 }
-
-/// Convert a color set into a data struct to be passed to the shader
-impl From<ColorSet> for ColorPreset {
-    fn from(set: ColorSet) -> Self {
-        Self {
-            off: convert_color(set.off),
-            low: convert_color(set.on_low),
-            high: convert_color(set.on_high),
-        }
-    }
-}
-
-/// Convert a RGBA byte into a RGBA float
-#[inline]
-fn convert_color(color: Rgba<u8>) -> [f32; 4] {
-    // remap values in the range [0, 255] to values in the range [0.0, 1.0]
-    const F: f32 = 1.0 / u8::MAX as f32;
-    macro_rules! c {
-        ($field:ident) => {
-            (color.$field as f32) * F
-        };
-    }
-    [c!(r), c!(g), c!(b), c!(a)]
-}
