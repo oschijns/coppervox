@@ -80,8 +80,10 @@ impl From<ColorSet> for ColorPreset {
 /// Converts an RGBA color to a GPU-compatible color array.
 #[inline]
 fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
+    const F: f32 = 1.0 / u8::MAX as f32;
+
     let c = Rgba::<f32>::from(color);
-    [c.r, c.g, c.b, c.a]
+    [c.r * F, c.g * F, c.b * F, c.a * F]
 }
 
 #[repr(u32)]

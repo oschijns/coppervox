@@ -10,7 +10,7 @@ use coppervox_runner::{
     runner::{Runner, RunnerData},
     shader_const::Mat4x4,
 };
-use kiss3d::{procedural::RenderMesh, resource::Material3d};
+use kiss3d::{glamx::Vec3, procedural::RenderMesh, resource::Material3d};
 use std::{cell::RefCell, rc::Rc};
 
 /// Identify matrix to prepare the projection matrix for the camera
@@ -28,6 +28,9 @@ pub struct Construct {
 
     /// Material based on a Runner
     pub material: Rc<RefCell<Box<dyn Material3d + 'static>>>,
+
+    /// Center of the model
+    pub center: Vec3,
 }
 
 impl Construct {
@@ -45,6 +48,10 @@ impl Construct {
         let process = Processing::make(ordered.io_order(), ordered.connect());
         let render = Rendering::make(ordered.quad_data(), ordered.meshes(), &config.colors);
 
+        // Get the center of the circuit
+        let [x, y, z] = ordered.center();
+        let center = Vec3::new(x as f32, y as f32, z as f32) * 0.5;
+
         // Group runner data
         let data = RunnerData::new(
             IDENTITY_MATRIX,
@@ -60,6 +67,7 @@ impl Construct {
             material: Rc::new(RefCell::new(
                 Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
             )),
+            center,
         })
     }
 }

@@ -155,7 +155,9 @@ impl LabeledModel {
 
         // reassign the labels in the matrix
         for cell in labeled_model.iter_mut() {
-            *cell = remap[cell];
+            if let Some(&c) = remap.get(cell) {
+                *cell = c;
+            }
         }
 
         Self {

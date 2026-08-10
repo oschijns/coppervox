@@ -4,10 +4,13 @@
 run:
     cargo run --package coppervox_main -- --model assets/test-circuit.vox --config assets/sample_config.ron
 
+# Run the main program
+run2:
+    cargo run --package coppervox_main -- --model assets2/test-circuit.vox --config assets2/sample_config.ron
+
 # Run the custom material example
 material:
     cargo run --package coppervox_main --example material
-
 
 # Run the laboratory
 lab:

@@ -47,6 +47,9 @@ pub struct OrderedData {
 
     /// Quad mesher storing the vertices data
     quad_data: UniQuadDataReader,
+
+    /// Bounding box aroudn the whole circuit
+    bounding_box: BoundingBox<3>,
 }
 
 impl OrderedData {
@@ -80,6 +83,19 @@ impl OrderedData {
         &self.quad_data
     }
 
+    /// Access the bounding box around the whole circuit
+    #[inline]
+    pub fn bounding_box(&self) -> &BoundingBox<3> {
+        &self.bounding_box
+    }
+
+    /// Center of the circuit
+    pub fn center(&self) -> [isize; 3] {
+        let [ax, ay, az] = self.bounding_box.start;
+        let [bx, by, bz] = self.bounding_box.end;
+        [bx - ax, by - ay, bz - az]
+    }
+
     /// Process the data loaded to obtain meshes and buffers
     pub fn make(model: &Model, config: &Config) -> Result<Self, Error> {
         // First analyze the model to identify shapes and connectivity
@@ -98,6 +114,7 @@ impl OrderedData {
             io_order,
             connect,
             quad_data: quad_reader,
+            bounding_box: *analysis.bounding_box(),
         })
     }
 }

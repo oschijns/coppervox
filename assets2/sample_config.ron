@@ -1,0 +1,22 @@
+Config(
+    map: {
+        1: (type: Or, color_index: 0),
+        2: (type: Or, color_index: 1),
+        3: (type: Or, color_index: 2),
+        4: (type: Or, color_index: 3),
+        5: (type: Or, color_index: 4),
+        6: (type: Or, color_index: 5),
+        7: (type: Or, color_index: 6),
+        8: (type: Or, color_index: 7),
+    },
+    colors: [
+        (off: "#ffffff", low: "#ffffff", high: "#ffffff"),
+        (off: "#ff0000", low: "#ff0000", high: "#ff0000"),
+        (off: "#ffff00", low: "#ffff00", high: "#ffff00"),
+        (off: "#00ff00", low: "#00ff00", high: "#00ff00"),
+        (off: "#00ffff", low: "#00ffff", high: "#00ffff"),
+        (off: "#0000ff", low: "#0000ff", high: "#0000ff"),
+        (off: "#ff00ff", low: "#ff00ff", high: "#ff00ff"),
+        (off: "#ffffff", low: "#111111", high: "#ffffff"),
+    ],
+)
