@@ -6,13 +6,14 @@ use coppervox_analyzer::{
     petgraph::Direction,
 };
 use coppervox_common::{
-    Model,
+    Model, Voxel,
     gridmap::{gridmap::bounding_box::BoundingBox, hashbrown::HashMap},
 };
 use coppervox_config::{
-    Config,
-    color::ColorIndex,
-    component::{CompDef, CompType, Interface},
+    color::GradientIndex,
+    component::{CompType, Interface},
+    identify::VoxelIdentifier,
+    mapping::Config,
 };
 use std::{rc::Rc, slice::Iter};
 
@@ -97,13 +98,13 @@ impl OrderedData {
     }
 
     /// Process the data loaded to obtain meshes and buffers
-    pub fn make(model: &Model, config: &Config) -> Result<Self, Error> {
+    pub fn make(model: &Model, ident: &mut VoxelIdentifier) -> Result<Self, Error> {
         // First analyze the model to identify shapes and connectivity
         let mut quad_reader = UniQuadDataReader::new();
         let analysis = analyze(model, &mut quad_reader);
 
         // Then convert the analysis into data usable by the GPU
-        let ident = IdentComp::make(config, analysis.labeled_model().islands())?;
+        let ident = IdentComp::make(ident, analysis.labeled_model().islands())?;
         let mesh_order = MeshOrdering::make(&ident, analysis.shape_set())?;
         let io_order = IoOrdering::make(&ident);
         let connect = Connect::make(&io_order, analysis.connectivity())?;
@@ -132,25 +133,28 @@ fn analyze(model: &Model, reader: &mut UniQuadDataReader) -> Analysis<Rc<MeshInd
 /// Identifies the type and color of a component based on its label instead of its voxel value
 pub struct IdentComp {
     /// For each label, provides the component definition (type and color)
-    components: HashMap<Label, (CompDef, BoundingBox<3>)>,
+    components: HashMap<Label, (Voxel, CompType, BoundingBox<3>)>,
 }
 
 impl IdentComp {
     /// Returns the component definition for the given label, if one exists
     #[inline]
-    pub fn get(&self, label: Label) -> Option<(CompDef, BoundingBox<3>)> {
-        self.components.get(&label).copied()
+    pub fn get(&self, label: Label) -> Option<(Voxel, CompType, BoundingBox<3>)> {
+        self.components.get(&label).cloned()
     }
 
     /// For each island, find the corresponding component definition in the config
-    fn make(config: &Config, islands: &HashMap<Label, IslandInfo>) -> Result<Self, Error> {
+    fn make(
+        ident: &mut VoxelIdentifier,
+        islands: &HashMap<Label, IslandInfo>,
+    ) -> Result<Self, Error> {
         let mut components = HashMap::with_capacity(islands.len());
 
         // Iterate over each island data
         for (&label, info) in islands.iter() {
             let voxel = info.voxel_value();
-            if let Some(def) = config.map.get(&voxel) {
-                components.insert(label, (*def, *info.bounding_box()));
+            if let Some((comp_type, _)) = ident.get_definition(voxel) {
+                components.insert(label, (voxel, comp_type, *info.bounding_box()));
             } else {
                 return Err(Error::NoConfigVoxel(voxel));
             }
@@ -169,7 +173,7 @@ pub struct MeshOrdering {
     /// Each component is identified by its label.
     /// The mesh index is the index into the `meshes` vector.
     /// The color index is the index into the `colors` vector.
-    components: Vec<(Label, MeshIndex, ColorIndex, BoundingBox<3>)>,
+    components: Vec<(Label, MeshIndex, GradientIndex, BoundingBox<3>)>,
 }
 
 /// Index of the mesh to use for a given component
@@ -184,7 +188,7 @@ impl MeshOrdering {
 
     /// Returns a slice of the components and their associated mesh indices.
     #[inline]
-    pub fn components(&self) -> &[(Label, MeshIndex, ColorIndex, BoundingBox<3>)] {
+    pub fn components(&self) -> &[(Label, MeshIndex, GradientIndex, BoundingBox<3>)] {
         &self.components
     }
 
@@ -218,11 +222,11 @@ impl MeshOrdering {
             // Find all labels associated with this mesh
             shape_set.find_labels(hash, &mut labels);
             for &label in labels.iter() {
-                let Some((def, bbox)) = ident.components.get(&label) else {
+                let Some((voxel, comp_type, bbox)) = ident.components.get(&label) else {
                     return Err(Error::NoConfigLabel(label));
                 };
 
-                components.push((label, index, def.color_index, *bbox));
+                components.push((label, index, *voxel as usize, *bbox));
             }
         }
 
@@ -234,14 +238,14 @@ impl MeshOrdering {
 /// Iterator over the components and their meshes
 pub struct IterComp<'m> {
     /// Iterator over components data
-    components: Iter<'m, (Label, MeshIndex, ColorIndex, BoundingBox<3>)>,
+    components: Iter<'m, (Label, MeshIndex, GradientIndex, BoundingBox<3>)>,
 
     /// List of meshes
     meshes: &'m [Rc<MeshIndices>],
 }
 
 impl<'m> Iterator for IterComp<'m> {
-    type Item = (Label, Rc<MeshIndices>, ColorIndex, BoundingBox<3>);
+    type Item = (Label, Rc<MeshIndices>, GradientIndex, BoundingBox<3>);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some((label, mesh_index, color_index, bbox)) = self.components.next() {
@@ -314,12 +318,12 @@ impl IoOrdering {
         ];
 
         // Iterate over each island data
-        for (&label, (def, _)) in ident.components.iter() {
-            let interface = def.comp_type.interface();
+        for (&label, (_, comp_type, _)) in ident.components.iter() {
+            let interface = comp_type.interface();
 
             // Get the list for this interface type
             let list = &mut lists[interface as usize];
-            list.push((label, def.comp_type));
+            list.push((label, comp_type.clone()));
         }
 
         // Regroup the generated list in the following order: [ inputs, both, outputs, none ]

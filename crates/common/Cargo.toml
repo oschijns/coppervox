@@ -13,3 +13,6 @@ thiserror.workspace = true
 
 # Define a model made of voxels
 gridmap = { git = "https://github.com/oschijns/gridmap.git", branch = "dev" }
+
+# Identify colors by their RGB values
+rgb = "0.8"

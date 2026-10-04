@@ -1,5 +1,4 @@
 use coppervox_common::{Model, Voxel, gridmap::ndarray::Array3};
-use core::f32;
 use glam::Vec3;
 use xcf::{RgbaPixel, Xcf};
 

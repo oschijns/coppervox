@@ -1,13 +1,23 @@
-Config({
-    0: {
-        type: "or",
-        color: {
-            off: {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 0,
-            }
-        },
-    }
-})
+Config(
+    voxel_ident: INDEX
+    map: {
+        1: (type: OR, gradient: 0),
+        2: (type: OR, gradient: 1),
+        3: (type: OR, gradient: 2),
+        4: (type: OR, gradient: 3),
+        5: (type: OR, gradient: 4),
+        6: (type: OR, gradient: 5),
+        7: (type: OR, gradient: 6),
+        8: (type: OR, gradient: (off: "#ffffff", low: "#ffffff", high: "#ffffff")),
+    },
+    color_gradients: [
+        (off: "#ffffff", low: "#ffffff", high: "#ffffff"),
+        (off: "#ff0000", low: "#ff0000", high: "#ff0000"),
+        (off: "#ffff00", low: "#ffff00", high: "#ffff00"),
+        (off: "#00ff00", low: "#00ff00", high: "#00ff00"),
+        (off: "#00ffff", low: "#00ffff", high: "#00ffff"),
+        (off: "#0000ff", low: "#0000ff", high: "#0000ff"),
+        (off: "#ff00ff", low: "#ff00ff", high: "#ff00ff"),
+        (off: "#ffffff", low: "#111111", high: "#ffffff"),
+    ],
+)

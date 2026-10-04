@@ -1,19 +1,11 @@
-use crate::{VALUE_SIZE, Value, color::ColorIndex};
+use crate::{VALUE_SIZE, Value};
 use kiss3d::event::Key;
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
-pub struct CompDef {
-    /// Define the type of component
-    #[serde(rename = "type")]
-    pub comp_type: CompType,
-
-    /// Colors of the component
-    pub color_index: ColorIndex,
-}
-
+/// The type of component
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub enum CompType {
     /// constant value
     Const(Value) = 0,
@@ -52,10 +44,17 @@ pub enum CompType {
     },
 
     /// Map a list of keys to a mask
-    InputMask([Option<Key>; VALUE_SIZE]),
+    InputMask(Box<[Option<Key>; VALUE_SIZE]>),
 
     /// The component output a value
     Output(u8),
+}
+
+impl Default for CompType {
+    #[inline]
+    fn default() -> Self {
+        Self::Const(0)
+    }
 }
 
 /// Define if a component serves as an interface to the outside world

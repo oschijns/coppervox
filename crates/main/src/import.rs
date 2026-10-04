@@ -1,6 +1,6 @@
 use coppervox_common::Model;
 use coppervox_importer::{dot_vox, magica};
-use coppervox_runner::config::Config;
+use coppervox_runner::config::mapping::Config;
 use std::{fs, io, path::Path};
 
 /// Error encountered when importing voxel files

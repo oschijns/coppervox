@@ -33,8 +33,11 @@ glam = "0.33"
 # Magica Voxel
 dot_vox = "5.2"
 
-# Goxel
-#gox = "0.4"
+# Handle multiple voxel formats
+voxconv = "0.2"
+
+# Aseprite
+aseprite-loader = "0.4"
 
 # GIMP
 xcf = "0.4"

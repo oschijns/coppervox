@@ -3,6 +3,7 @@ use crate::{
     import::{import_model, load_config},
 };
 use coppervox_runner::{
+    config::identify::VoxelIdentifier,
     loader::{
         converter::{Processing, Rendering},
         processor::OrderedData,
@@ -42,11 +43,12 @@ impl Construct {
 
         // Load the configuration provided
         let config = load_config(&cli.config)?;
+        let mut ident = VoxelIdentifier::make(config);
 
         // Process the data to build the logic circuit and the rendered mesh
-        let ordered = OrderedData::make(&model, &config)?;
+        let ordered = OrderedData::make(&model, &mut ident)?;
         let process = Processing::make(ordered.io_order(), ordered.connect());
-        let render = Rendering::make(ordered.quad_data(), ordered.meshes(), &config.colors);
+        let render = Rendering::make(ordered.quad_data(), ordered.meshes(), &ident.definitions);
 
         // Get the center of the circuit
         let [x, y, z] = ordered.center();

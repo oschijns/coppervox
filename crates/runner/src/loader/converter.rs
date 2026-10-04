@@ -5,7 +5,7 @@ use crate::{
     },
     shader_const::{ColorPreset, InstanceData, Op},
 };
-use coppervox_config::color::ColorSet;
+use coppervox_config::{color::ColorGradient, component::CompType};
 use kiss3d::{procedural::RenderMesh, resource::Material3d};
 use std::{cell::RefCell, rc::Rc};
 
@@ -50,7 +50,11 @@ impl Rendering {
     }
 
     /// Convert the ordered data into GPU Mesh
-    pub fn make(quad_data: &UniQuadDataReader, order: &MeshOrdering, colors: &[ColorSet]) -> Self {
+    pub fn make(
+        quad_data: &UniQuadDataReader,
+        order: &MeshOrdering,
+        colors: &[(CompType, ColorGradient)],
+    ) -> Self {
         // Allocate buffers
         let count = order.components().len();
 
@@ -64,7 +68,7 @@ impl Rendering {
         // Convert color sets to color presets for the shader
         let color_presets = colors
             .iter()
-            .map(|c| ColorPreset::from(*c))
+            .map(|(_, c)| ColorPreset::from(*c))
             .collect::<Vec<_>>();
 
         // Convert the meshes

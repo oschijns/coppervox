@@ -1,0 +1,92 @@
+use crate::{
+    color::ColorGradient,
+    component::CompType,
+    mapping::{CompGradient, Config, Mapping},
+};
+use coppervox_common::{Voxel, color_space::ColorSpace};
+
+/*
+ * TODO:
+ * There might be an issue here where the voxel index might be too large and
+ * the definitions vector use too much memory. We define a constant to arbitraly
+ * limit the size of this vector.
+ */
+
+/// Avoid having too many definitions
+const DEF_LIMIT: usize = u16::MAX as usize;
+
+/// Given a voxel identify it and recover its component definition
+pub struct VoxelIdentifier {
+    /// Optional color space partitioning if we are identifying voxel by color
+    pub color_space: Option<ColorSpace>,
+
+    /// List of component definition identified by their voxel index
+    pub definitions: Vec<(CompType, ColorGradient)>,
+}
+
+impl VoxelIdentifier {
+    /// Convert the config into an exploitable voxel identifier
+    pub fn make(config: Config) -> Self {
+        match &config.mapping {
+            Mapping::Index(map) => {
+                // Create a buffer to store components
+                let mut definitions = Vec::new();
+
+                for (&index, comp) in map.iter() {
+                    let index = index as usize;
+
+                    // Voxel index is too high and will result in too much memory consumption.
+                    if index > DEF_LIMIT {
+                        panic!("Voxel index is too high")
+                    }
+
+                    // Ensure the buffer is large enough
+                    if definitions.len() <= index {
+                        definitions.resize(index, Default::default());
+                    }
+
+                    // Get the color gradient for the component
+                    let gradient = config.get_gradient(comp);
+                    definitions.insert(index, (comp.define.clone(), gradient));
+                }
+
+                Self {
+                    color_space: None,
+                    definitions,
+                }
+            }
+            Mapping::Color(map) => {
+                // We are building two lists:
+                // one for setting the color space partitioning
+                // one for recovering the component config from its index
+                let count = map.len();
+                let mut colors = Vec::with_capacity(count);
+                let mut definitions = Vec::with_capacity(count);
+
+                // Associate the color with a voxel index
+                for (index, (&color, comp)) in map.iter().enumerate() {
+                    colors.push((color, index as u32));
+
+                    let gradient = config.get_gradient(comp);
+                    definitions.push((comp.define.clone(), gradient));
+                }
+
+                Self {
+                    color_space: Some(ColorSpace::load(&colors)),
+                    definitions,
+                }
+            }
+        }
+    }
+
+    /// Get the component definition from a voxel index
+    #[inline]
+    pub fn get_definition(&self, voxel: Voxel) -> Option<(CompType, ColorGradient)> {
+        let index = voxel as usize;
+        if index < self.definitions.len() {
+            Some(self.definitions[index].clone())
+        } else {
+            None
+        }
+    }
+}

@@ -1,5 +1,5 @@
-use coppervox_config::color::ColorSet;
-use kiss3d::color::Rgba;
+use coppervox_config::color::ColorGradient;
+use coppervox_common::rgb::{RGB8, Rgb};
 
 /// Size of workgroups
 pub const WORKGROUP: u32 = 256;
@@ -67,8 +67,8 @@ impl ColorPreset {
     }
 }
 
-impl From<ColorSet> for ColorPreset {
-    fn from(color: ColorSet) -> Self {
+impl From<ColorGradient> for ColorPreset {
+    fn from(color: ColorGradient) -> Self {
         Self::new(
             to_gpu_color(color.off),
             to_gpu_color(color.on_low),
@@ -79,11 +79,11 @@ impl From<ColorSet> for ColorPreset {
 
 /// Converts an RGBA color to a GPU-compatible color array.
 #[inline]
-fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
+fn to_gpu_color(color: RGB8) -> [f32; 4] {
     const F: f32 = 1.0 / u8::MAX as f32;
 
-    let c = Rgba::<f32>::from(color);
-    [c.r * F, c.g * F, c.b * F, c.a * F]
+    let Rgb { r, g, b } = color;
+    [r as f32 * F, g as f32 * F, b as f32 * F, 1.0]
 }
 
 #[repr(u32)]
