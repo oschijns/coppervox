@@ -1,5 +1,5 @@
-use super::{Error, RcMesh, mesher::QuadDataReader};
-use crate::shader_const::MAX_CNX;
+use super::{Error, uni_mesher::UniQuadDataReader};
+use crate::{loader::uni_mesher::MeshIndices, shader_const::MAX_CNX};
 use coppervox_analyzer::{
     Analysis, Connectivity, IslandInfo, Label, Mesher, ShapeSet,
     block_mesh::{QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG},
@@ -14,6 +14,7 @@ use coppervox_config::{
     color::ColorIndex,
     component::{CompDef, CompType, Interface},
 };
+use std::{rc::Rc, slice::Iter};
 
 /*
  * When processing the analysis, we want to define two ordering of the components.
@@ -43,6 +44,12 @@ pub struct OrderedData {
 
     /// Connections between components
     connect: Connect,
+
+    /// Quad mesher storing the vertices data
+    quad_data: UniQuadDataReader,
+
+    /// Bounding box aroudn the whole circuit
+    bounding_box: BoundingBox<3>,
 }
 
 impl OrderedData {
@@ -70,10 +77,30 @@ impl OrderedData {
         &self.connect
     }
 
+    /// Access the quad reader which contains the raw vertex data that was collected
+    #[inline]
+    pub fn quad_data(&self) -> &UniQuadDataReader {
+        &self.quad_data
+    }
+
+    /// Access the bounding box around the whole circuit
+    #[inline]
+    pub fn bounding_box(&self) -> &BoundingBox<3> {
+        &self.bounding_box
+    }
+
+    /// Center of the circuit
+    pub fn center(&self) -> [isize; 3] {
+        let [ax, ay, az] = self.bounding_box.start;
+        let [bx, by, bz] = self.bounding_box.end;
+        [bx - ax, by - ay, bz - az]
+    }
+
     /// Process the data loaded to obtain meshes and buffers
     pub fn make(model: &Model, config: &Config) -> Result<Self, Error> {
         // First analyze the model to identify shapes and connectivity
-        let analysis = analyze(model);
+        let mut quad_reader = UniQuadDataReader::new();
+        let analysis = analyze(model, &mut quad_reader);
 
         // Then convert the analysis into data usable by the GPU
         let ident = IdentComp::make(config, analysis.labeled_model().islands())?;
@@ -86,19 +113,20 @@ impl OrderedData {
             mesh_order,
             io_order,
             connect,
+            quad_data: quad_reader,
+            bounding_box: *analysis.bounding_box(),
         })
     }
 }
 
 /// Build an analysis of the model, using the given mesher and reader
-fn analyze(model: &Model) -> Analysis<RcMesh> {
+fn analyze(model: &Model, reader: &mut UniQuadDataReader) -> Analysis<Rc<MeshIndices>> {
     // Config for generating meshes from quad data
     const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
     let mut mesher = Mesher::new(QUAD_CONFIG, 0);
-    let mut reader = QuadDataReader::new(true, false);
 
     // Analyse the model
-    Analysis::build(model, &mut mesher, &mut reader)
+    Analysis::build(model, &mut mesher, reader)
 }
 
 /// Identifies the type and color of a component based on its label instead of its voxel value
@@ -134,10 +162,8 @@ impl IdentComp {
 
 /// Ordering of components by the mesh they share
 pub struct MeshOrdering {
-    // TODO: maybe render meshes should be directly be converted to `Rc<RefCell<GpuMesh3d>>`
-    /// List of unique meshes extracted from the shape set
-    /// Each mesh will be converted to `Rc<RefCell<GpuMesh3d>>`
-    meshes: Vec<RcMesh>,
+    // TODO: with the unified approach, we have only one Mesh to deal with
+    meshes: Vec<Rc<MeshIndices>>,
 
     /// List of components and their associated mesh indices
     /// Each component is identified by its label.
@@ -152,7 +178,7 @@ pub type MeshIndex = usize;
 impl MeshOrdering {
     /// Returns a slice of the unique meshes extracted from the shape set.
     #[inline]
-    pub fn meshes(&self) -> &[RcMesh] {
+    pub fn meshes(&self) -> &[Rc<MeshIndices>] {
         &self.meshes
     }
 
@@ -162,8 +188,17 @@ impl MeshOrdering {
         &self.components
     }
 
+    /// Create an iterator over the components and their meshes
+    #[inline]
+    pub fn iter_components<'m>(&'m self) -> IterComp<'m> {
+        IterComp {
+            components: self.components.iter(),
+            meshes: &self.meshes,
+        }
+    }
+
     /// Order components by the mesh they share
-    fn make(ident: &IdentComp, shape_set: &ShapeSet<RcMesh>) -> Result<Self, Error> {
+    fn make(ident: &IdentComp, shape_set: &ShapeSet<Rc<MeshIndices>>) -> Result<Self, Error> {
         // How many objects and how many shapes/meshes are defined.
         let count_obj = shape_set.count_objects();
         let count_shp = shape_set.count_shapes();
@@ -177,6 +212,7 @@ impl MeshOrdering {
 
         // Find all labels associated with each mesh
         for (index, (&hash, mesh)) in shape_set.iter_hashes_meshes().enumerate() {
+            // TODO: rework this part
             meshes.push(mesh.clone());
 
             // Find all labels associated with this mesh
@@ -192,6 +228,32 @@ impl MeshOrdering {
 
         // return the ordering
         Ok(Self { meshes, components })
+    }
+}
+
+/// Iterator over the components and their meshes
+pub struct IterComp<'m> {
+    /// Iterator over components data
+    components: Iter<'m, (Label, MeshIndex, ColorIndex, BoundingBox<3>)>,
+
+    /// List of meshes
+    meshes: &'m [Rc<MeshIndices>],
+}
+
+impl<'m> Iterator for IterComp<'m> {
+    type Item = (Label, Rc<MeshIndices>, ColorIndex, BoundingBox<3>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some((label, mesh_index, color_index, bbox)) = self.components.next() {
+            Some((
+                *label,
+                self.meshes[*mesh_index].clone(),
+                *color_index,
+                *bbox,
+            ))
+        } else {
+            None
+        }
     }
 }
 

@@ -12,7 +12,7 @@ mod exec;
 
 use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
 use kiss3d::resource::PipelineCache;
-use wgpu::{BindGroup, BindGroupLayout, Buffer};
+use wgpu::{BindGroup, BindGroupLayout, Buffer, ComputePipeline};
 
 /*
  * As defined in the shader, given N components we have
@@ -39,14 +39,21 @@ use wgpu::{BindGroup, BindGroupLayout, Buffer};
 
 /// Define the runner pipeline
 pub struct Runner {
-    /// GPU Pipeline
-    pipeline: PipelineCache,
-
     /// Data to construct the runner
     data: RunnerData,
 
     /// flip-flop latch
     flip_flop: bool,
+}
+
+impl Runner {
+    /// Create a runner from pre-computed circuit data
+    pub fn new(data: RunnerData) -> Self {
+        Self {
+            data,
+            flip_flop: false,
+        }
+    }
 }
 
 /// Data that have been extracted and analyzed from the voxel model to be submitted to the GPU
@@ -70,6 +77,27 @@ pub struct RunnerData {
     inits: Vec<u32>,
 }
 
+impl RunnerData {
+    /// Package the data extracted from a circuit for submission to the GPU
+    pub fn new(
+        projection: Mat4x4,
+        connections: Vec<u32>,
+        operations: Vec<u32>,
+        instances_data: Vec<InstanceData>,
+        color_presets: Vec<ColorPreset>,
+        inits: Vec<u32>,
+    ) -> Self {
+        Self {
+            projection,
+            connections,
+            operations,
+            instances_data,
+            color_presets,
+            inits,
+        }
+    }
+}
+
 /// Store data for running a logic circuit simulation
 pub struct RunnerGpuData {
     /// Buffer allocated in video memory
@@ -78,8 +106,14 @@ pub struct RunnerGpuData {
     /// Bind groups for the compute pass
     compute: ComputeBinding,
 
+    /// Pipeline used to run one simulation tick
+    compute_pipeline: ComputePipeline,
+
     /// Bind groups for the render pass
     render: RenderBinding,
+
+    /// Pipeline used to draw the circuit, specialized lazily per MSAA sample count
+    render_pipeline: PipelineCache,
 }
 
 /// Allocate buffer to store the data

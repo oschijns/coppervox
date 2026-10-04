@@ -21,6 +21,11 @@ impl Connectivity {
 
         // iterate over the whole matrix and connect nodes according to
         for ([x, y, z], label) in model.labeled_model.indexed_iter() {
+            // Skip empty cells, they don't belong to any island.
+            if *label == 0 {
+                continue;
+            }
+
             // Check the cells around the current one.
             // TODO: This could be better optimized by using a smarter iterator.
             let neighbors = [
@@ -36,8 +41,9 @@ impl Connectivity {
             // neighbors of the current cell.
             occurences.clear();
             for neigh in neighbors {
-                // Skip if the neighbor is part of the same island as the current cell.
-                if neigh != *label {
+                // Skip if the neighbor is empty space (label 0) or part of
+                // the same island as the current cell.
+                if neigh != 0 && neigh != *label {
                     *occurences.entry(neigh).or_insert(1) += 1;
                 }
             }

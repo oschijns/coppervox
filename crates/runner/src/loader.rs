@@ -1,5 +1,5 @@
-/// Build mesh from quad data
-pub mod mesher;
+// Build mesh from quad data
+//pub mod mesher;
 
 /// Build a single mesh from quad data
 pub mod uni_mesher;
@@ -10,13 +10,10 @@ pub mod processor;
 /// Convert the data into types supported by the GPU
 pub mod converter;
 
-use crate::{
-    loader::converter::{Processing, Rendering},
-    shader_const::Op,
-};
+use crate::shader_const::Op;
 use coppervox_analyzer::Label;
-use coppervox_common::{Model, Voxel};
-use coppervox_config::{Config, component::CompType};
+use coppervox_common::Voxel;
+use coppervox_config::component::CompType;
 use kiss3d::{prelude::GpuMesh3d, procedural::RenderMesh};
 use std::{cell::RefCell, rc::Rc};
 
@@ -45,15 +42,7 @@ pub type RcMesh = Rc<RenderMesh>;
 /// Reference to a GPU mesh, held in an `Rc` and protected by a `RefCell`
 pub type RcGpuMesh = Rc<RefCell<GpuMesh3d>>;
 
-/// Configuration loaded from the input files provided
-pub struct Loader {
-    /// Model loaded from the file
-    model: Model,
-
-    /// Configuration loaded from the text file
-    config: Config,
-}
-
+/*
 /// Circuit split into processing data and rendering data
 pub struct Circuit {
     /// Processing data
@@ -61,14 +50,6 @@ pub struct Circuit {
 
     /// Rendering data
     render: Rendering,
-}
-
-impl Loader {
-    /// Create a new config
-    #[inline]
-    pub fn new(model: Model, config: Config) -> Self {
-        Self { model, config }
-    }
 }
 
 impl Circuit {
@@ -84,6 +65,7 @@ impl Circuit {
         &self.render
     }
 }
+*/
 
 impl Op {
     /// Get the operation value to submit to the GPU

@@ -4,7 +4,6 @@ use coppervox_common::gridmap::hashbrown::{
     HashMap,
     hash_map::{Iter, Keys, Values},
 };
-use core::marker::PhantomData;
 
 impl LabeledModel {
     /// Iterate over the islands

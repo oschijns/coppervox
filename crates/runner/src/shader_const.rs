@@ -1,3 +1,6 @@
+use coppervox_config::color::ColorSet;
+use kiss3d::color::Rgba;
+
 /// Size of workgroups
 pub const WORKGROUP: u32 = 256;
 
@@ -33,6 +36,16 @@ pub struct InstanceData {
     pub(crate) colors_index: u32,
 }
 
+impl InstanceData {
+    /// Create the per-instance data for one component
+    pub fn new(translate: Vec3, colors_index: u32) -> Self {
+        Self {
+            translate,
+            colors_index,
+        }
+    }
+}
+
 /// Colors for a component type
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -45,6 +58,32 @@ pub struct ColorPreset {
 
     /// Color used when the component has high power (u32::MAX)
     pub(crate) high: Vec4,
+}
+
+impl ColorPreset {
+    /// Create a color preset for a component type
+    pub fn new(off: Vec4, low: Vec4, high: Vec4) -> Self {
+        Self { off, low, high }
+    }
+}
+
+impl From<ColorSet> for ColorPreset {
+    fn from(color: ColorSet) -> Self {
+        Self::new(
+            to_gpu_color(color.off),
+            to_gpu_color(color.on_low),
+            to_gpu_color(color.on_high),
+        )
+    }
+}
+
+/// Converts an RGBA color to a GPU-compatible color array.
+#[inline]
+fn to_gpu_color(color: Rgba<u8>) -> [f32; 4] {
+    const F: f32 = 1.0 / u8::MAX as f32;
+
+    let c = Rgba::<f32>::from(color);
+    [c.r * F, c.g * F, c.b * F, c.a * F]
 }
 
 #[repr(u32)]

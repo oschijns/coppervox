@@ -13,7 +13,11 @@ pub struct Remapper([CVVoxel; SIZE]);
 impl Default for Remapper {
     #[inline]
     fn default() -> Self {
-        Self([0; SIZE])
+        let mut b = [0; SIZE];
+        for i in 0..SIZE {
+            b[i] = i as CVVoxel;
+        }
+        Self(b)
     }
 }
 
@@ -32,7 +36,10 @@ impl Remapper {
     fn write_voxel_model(&self, canvas: &mut CVModel, model: &Model) {
         for voxel in model.voxels.iter() {
             let i = [voxel.x as isize, voxel.y as isize, voxel.z as isize];
-            let v = self.0[voxel.i as usize];
+            // dot_vox stores `voxel.i` as (file palette index - 1), so palette
+            // index 1 (the first non-empty color) comes in as 0. Shift back up
+            // by 1 so that 0 stays reserved for "no voxel" in our own Model.
+            let v = self.0[voxel.i as usize + 1];
             canvas[i] = v;
         }
     }

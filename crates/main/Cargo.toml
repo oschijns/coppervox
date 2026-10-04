@@ -12,6 +12,7 @@ license.workspace = true
 
 # Provide explicit errors
 thiserror.workspace = true
+anyhow = "1"
 
 # Common data structures
 coppervox_common = { path = "../common" }

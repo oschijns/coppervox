@@ -22,10 +22,20 @@ impl<M> Analysis<M> {
         // identify connections between islands
         let connectivity = Connectivity::from_model(&labeled_model);
 
+        // Create an invalid bounding box around the whole model
+        let mut bounding_box = BoundingBox {
+            start: [isize::MAX, isize::MAX, isize::MAX],
+            end: [isize::MIN, isize::MIN, isize::MIN],
+        };
+        for (_, island) in labeled_model.islands.iter() {
+            bounding_box.grow_with_box(&island.bounding_box);
+        }
+
         Self {
             labeled_model,
             shape_set,
             connectivity,
+            bounding_box,
         }
     }
 }
@@ -53,6 +63,12 @@ impl<M> Analysis<M> {
     #[inline]
     pub fn count(&self) -> usize {
         self.labeled_model.islands.len()
+    }
+
+    /// Access the bounding box around the whole circuit
+    #[inline]
+    pub fn bounding_box(&self) -> &BoundingBox<3> {
+        &self.bounding_box
     }
 
     /// Get island informations from a label

@@ -111,6 +111,9 @@ pub struct Analysis<M> {
 
     /// Define the connections between the components
     connectivity: Connectivity,
+
+    /// Identify the bounding box around the whole model
+    bounding_box: BoundingBox<3>,
 }
 
 /// Information on an island

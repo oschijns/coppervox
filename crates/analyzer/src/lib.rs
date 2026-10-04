@@ -3,6 +3,7 @@ mod analyzer;
 
 // re-export crates
 pub use block_mesh;
+pub use coppervox_common as common;
 pub use petgraph;
 
 // re-export types
