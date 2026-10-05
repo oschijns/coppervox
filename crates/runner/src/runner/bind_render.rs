@@ -1,5 +1,5 @@
 use super::*;
-use crate::shader_const::{Layout, Mat4x4};
+use crate::shader_const::{GpuLayout, GpuMat4x4};
 use kiss3d::prelude::*;
 use std::num::NonZero;
 use wgpu::{
@@ -9,16 +9,16 @@ use wgpu::{
 };
 
 /// The singular projection matrix of the camera
-pub const BIND_PROJECTION: Layout = Layout::new(0, 0);
+pub const BIND_PROJECTION: GpuLayout = GpuLayout::new(0, 0);
 
 /// Instance data (translation & color index) of the components
-pub const BIND_INSTANCES_DATA: Layout = Layout::new(1, 0);
+pub const BIND_INSTANCES_DATA: GpuLayout = GpuLayout::new(1, 0);
 
 /// Color presets
-pub const BIND_COLOR_PRESETS: Layout = Layout::new(1, 1);
+pub const BIND_COLOR_PRESETS: GpuLayout = GpuLayout::new(1, 1);
 
 /// Processed values to display on the components
-pub const BIND_PROCESSED: Layout = Layout::new(2, 0);
+pub const BIND_PROCESSED: GpuLayout = GpuLayout::new(2, 0);
 
 impl RenderLayout {
     /// Create the layouts for the compute shader
@@ -158,7 +158,7 @@ fn create_proj_layout(ctx: &Context) -> BindGroupLayout {
             ty: BindingType::Buffer {
                 ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
-                min_binding_size: NonZero::new(size_of::<Mat4x4>() as u64),
+                min_binding_size: NonZero::new(size_of::<GpuMat4x4>() as u64),
             },
             count: None,
         }],

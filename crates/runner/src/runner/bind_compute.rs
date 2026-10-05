@@ -1,5 +1,5 @@
 use super::*;
-use crate::shader_const::Layout;
+use crate::shader_const::GpuLayout;
 use kiss3d::prelude::*;
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
@@ -8,16 +8,16 @@ use wgpu::{
 };
 
 /// Define connections between outputs and inputs
-pub const BIND_CONNECTIONS: Layout = Layout::new(0, 0);
+pub const BIND_CONNECTIONS: GpuLayout = GpuLayout::new(0, 0);
 
 /// Define the type of operation and the number of inputs to read for each output
-pub const BIND_OPERATIONS: Layout = Layout::new(0, 1);
+pub const BIND_OPERATIONS: GpuLayout = GpuLayout::new(0, 1);
 
 /// Input values to process
-pub const BIND_INPUTS: Layout = Layout::new(1, 0);
+pub const BIND_INPUTS: GpuLayout = GpuLayout::new(1, 0);
 
 /// Ouput values to write
-pub const BIND_OUTPUTS: Layout = Layout::new(1, 1);
+pub const BIND_OUTPUTS: GpuLayout = GpuLayout::new(1, 1);
 
 impl ComputeLayout {
     /// Create the layouts for the compute shader
@@ -40,14 +40,15 @@ pub fn create_compute_pipeline(ctx: &Context, layout: &ComputeLayout) -> Compute
         bind_group_layouts: &[Some(&layout.layout_const), Some(&layout.layout_mut)],
         immediate_size: 0,
     });
-    ctx.device.create_compute_pipeline(&ComputePipelineDescriptor {
-        label: Some("logic_compute_pipeline"),
-        layout: Some(&pipeline_layout),
-        module: &shader,
-        entry_point: Some("process"),
-        compilation_options: Default::default(),
-        cache: None,
-    })
+    ctx.device
+        .create_compute_pipeline(&ComputePipelineDescriptor {
+            label: Some("logic_compute_pipeline"),
+            layout: Some(&pipeline_layout),
+            module: &shader,
+            entry_point: Some("process"),
+            compilation_options: Default::default(),
+            cache: None,
+        })
 }
 
 impl ComputeBinding {

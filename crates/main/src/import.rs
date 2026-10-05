@@ -1,6 +1,6 @@
 use coppervox_common::Model;
 use coppervox_importer::{dot_vox, magica};
-use coppervox_runner::config::mapping::Config;
+use coppervox_runner::config::{identify::VoxelIdentifier, mapping::Config};
 use std::{fs, io, path::Path};
 
 /// Error encountered when importing voxel files
@@ -20,7 +20,11 @@ pub enum ImportError {
 }
 
 /// Read the file at the given path and load voxel data from it
-pub fn import_model(path: &Path, chunk_dim: [usize; 3]) -> Result<Model, ImportError> {
+pub fn import_model(
+    path: &Path,
+    vox_ident: &mut VoxelIdentifier,
+    chunk_dim: [usize; 3],
+) -> Result<Model, ImportError> {
     if let Some(ext) = path.extension() {
         let ext = ext.to_string_lossy();
         match ext.as_ref() {

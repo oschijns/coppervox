@@ -5,7 +5,7 @@
  */
 
 use super::*;
-use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
+use crate::shader_const::{GpuColorGradient, GpuInstanceData, GpuMat4x4};
 use kiss3d::prelude::*;
 use wgpu::BufferUsages;
 
@@ -13,11 +13,11 @@ impl AllocBuffers {
     /// Allocate buffers and fill them with the provided data
     pub fn new(
         ctx: &Context,
-        projection: &Mat4x4,
+        projection: &GpuMat4x4,
         connections: &[u32],
         operations: &[u32],
-        instances_data: &[InstanceData],
-        color_presets: &[ColorPreset],
+        instances_data: &[GpuInstanceData],
+        color_presets: &[GpuColorGradient],
         inits: &[u32],
     ) -> Self {
         let store = BufferUsages::STORAGE;

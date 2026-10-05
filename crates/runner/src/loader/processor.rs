@@ -6,14 +6,13 @@ use coppervox_analyzer::{
     petgraph::Direction,
 };
 use coppervox_common::{
-    Model, Voxel,
+    List, Model, Voxel,
     gridmap::{gridmap::bounding_box::BoundingBox, hashbrown::HashMap},
 };
 use coppervox_config::{
     color::GradientIndex,
     component::{CompType, Interface},
     identify::VoxelIdentifier,
-    mapping::Config,
 };
 use std::{rc::Rc, slice::Iter};
 
@@ -33,9 +32,9 @@ use std::{rc::Rc, slice::Iter};
  */
 
 /// Circuit data to be used by the process shader
-pub struct OrderedData {
+pub struct ProcessingData {
     /// Components identified by their voxel value
-    ident: IdentComp,
+    ident: ComponentIdentifier,
 
     /// Meshes with corresponding components
     mesh_order: MeshOrdering,
@@ -53,10 +52,10 @@ pub struct OrderedData {
     bounding_box: BoundingBox<3>,
 }
 
-impl OrderedData {
+impl ProcessingData {
     /// Get identified components
     #[inline]
-    pub fn ident(&self) -> &IdentComp {
+    pub fn ident(&self) -> &ComponentIdentifier {
         &self.ident
     }
 
@@ -98,13 +97,20 @@ impl OrderedData {
     }
 
     /// Process the data loaded to obtain meshes and buffers
-    pub fn make(model: &Model, ident: &mut VoxelIdentifier) -> Result<Self, Error> {
+    pub fn make(model: &Model, ident: &VoxelIdentifier) -> Result<Self, Error> {
         // First analyze the model to identify shapes and connectivity
         let mut quad_reader = UniQuadDataReader::new();
         let analysis = analyze(model, &mut quad_reader);
 
+        // Collect component types
+        let types = ident
+            .definitions
+            .iter()
+            .map(|(c, _)| c.clone())
+            .collect::<List<_>>();
+
         // Then convert the analysis into data usable by the GPU
-        let ident = IdentComp::make(ident, analysis.labeled_model().islands())?;
+        let ident = ComponentIdentifier::make(types, analysis.labeled_model().islands())?;
         let mesh_order = MeshOrdering::make(&ident, analysis.shape_set())?;
         let io_order = IoOrdering::make(&ident);
         let connect = Connect::make(&io_order, analysis.connectivity())?;
@@ -131,36 +137,32 @@ fn analyze(model: &Model, reader: &mut UniQuadDataReader) -> Analysis<Rc<MeshInd
 }
 
 /// Identifies the type and color of a component based on its label instead of its voxel value
-pub struct IdentComp {
+pub struct ComponentIdentifier {
     /// For each label, provides the component definition (type and color)
-    components: HashMap<Label, (Voxel, CompType, BoundingBox<3>)>,
+    components: HashMap<Label, (Voxel, BoundingBox<3>)>,
+
+    /// List of component definition identified by their voxel index
+    types: List<CompType>,
 }
 
-impl IdentComp {
+impl ComponentIdentifier {
     /// Returns the component definition for the given label, if one exists
     #[inline]
-    pub fn get(&self, label: Label) -> Option<(Voxel, CompType, BoundingBox<3>)> {
+    pub fn get(&self, label: Label) -> Option<(Voxel, BoundingBox<3>)> {
         self.components.get(&label).cloned()
     }
 
     /// For each island, find the corresponding component definition in the config
-    fn make(
-        ident: &mut VoxelIdentifier,
-        islands: &HashMap<Label, IslandInfo>,
-    ) -> Result<Self, Error> {
+    fn make(types: List<CompType>, islands: &HashMap<Label, IslandInfo>) -> Result<Self, Error> {
         let mut components = HashMap::with_capacity(islands.len());
 
         // Iterate over each island data
         for (&label, info) in islands.iter() {
             let voxel = info.voxel_value();
-            if let Some((comp_type, _)) = ident.get_definition(voxel) {
-                components.insert(label, (voxel, comp_type, *info.bounding_box()));
-            } else {
-                return Err(Error::NoConfigVoxel(voxel));
-            }
+            components.insert(label, (voxel, *info.bounding_box()));
         }
 
-        Ok(Self { components })
+        Ok(Self { components, types })
     }
 }
 
@@ -202,7 +204,10 @@ impl MeshOrdering {
     }
 
     /// Order components by the mesh they share
-    fn make(ident: &IdentComp, shape_set: &ShapeSet<Rc<MeshIndices>>) -> Result<Self, Error> {
+    fn make(
+        ident: &ComponentIdentifier,
+        shape_set: &ShapeSet<Rc<MeshIndices>>,
+    ) -> Result<Self, Error> {
         // How many objects and how many shapes/meshes are defined.
         let count_obj = shape_set.count_objects();
         let count_shp = shape_set.count_shapes();
@@ -222,7 +227,7 @@ impl MeshOrdering {
             // Find all labels associated with this mesh
             shape_set.find_labels(hash, &mut labels);
             for &label in labels.iter() {
-                let Some((voxel, comp_type, bbox)) = ident.components.get(&label) else {
+                let Some((voxel, bbox)) = ident.components.get(&label) else {
                     return Err(Error::NoConfigLabel(label));
                 };
 
@@ -306,7 +311,7 @@ impl IoOrdering {
     }
 
     /// Order components by their IO connectivity
-    fn make(ident: &IdentComp) -> Self {
+    fn make(ident: &ComponentIdentifier) -> Self {
         let count = ident.components.len();
 
         // we define multiple arrays to store the components by their IO type
@@ -318,12 +323,13 @@ impl IoOrdering {
         ];
 
         // Iterate over each island data
-        for (&label, (_, comp_type, _)) in ident.components.iter() {
+        for (&label, (voxel, _)) in ident.components.iter() {
+            let comp_type = ident.types[*voxel as usize].clone();
             let interface = comp_type.interface();
 
             // Get the list for this interface type
             let list = &mut lists[interface as usize];
-            list.push((label, comp_type.clone()));
+            list.push((label, comp_type));
         }
 
         // Regroup the generated list in the following order: [ inputs, both, outputs, none ]

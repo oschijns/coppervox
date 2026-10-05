@@ -1,9 +1,9 @@
 use crate::{
     color::ColorGradient,
     component::CompType,
-    mapping::{CompGradient, Config, Mapping},
+    mapping::{Config, Mapping},
 };
-use coppervox_common::{Voxel, color_space::ColorSpace};
+use coppervox_common::{List, Voxel, color_space::ColorSpace};
 
 /*
  * TODO:
@@ -21,7 +21,7 @@ pub struct VoxelIdentifier {
     pub color_space: Option<ColorSpace>,
 
     /// List of component definition identified by their voxel index
-    pub definitions: Vec<(CompType, ColorGradient)>,
+    pub definitions: List<(CompType, ColorGradient)>,
 }
 
 impl VoxelIdentifier {
@@ -30,7 +30,7 @@ impl VoxelIdentifier {
         match &config.mapping {
             Mapping::Index(map) => {
                 // Create a buffer to store components
-                let mut definitions = Vec::new();
+                let mut defs = Vec::new();
 
                 for (&index, comp) in map.iter() {
                     let index = index as usize;
@@ -41,18 +41,18 @@ impl VoxelIdentifier {
                     }
 
                     // Ensure the buffer is large enough
-                    if definitions.len() <= index {
-                        definitions.resize(index, Default::default());
+                    if defs.len() <= index {
+                        defs.resize(index, Default::default());
                     }
 
                     // Get the color gradient for the component
                     let gradient = config.get_gradient(comp);
-                    definitions.insert(index, (comp.define.clone(), gradient));
+                    defs.insert(index, (comp.define.clone(), gradient));
                 }
 
                 Self {
                     color_space: None,
-                    definitions,
+                    definitions: defs.into_boxed_slice(),
                 }
             }
             Mapping::Color(map) => {
@@ -61,19 +61,19 @@ impl VoxelIdentifier {
                 // one for recovering the component config from its index
                 let count = map.len();
                 let mut colors = Vec::with_capacity(count);
-                let mut definitions = Vec::with_capacity(count);
+                let mut defs = Vec::with_capacity(count);
 
                 // Associate the color with a voxel index
                 for (index, (&color, comp)) in map.iter().enumerate() {
                     colors.push((color, index as u32));
 
                     let gradient = config.get_gradient(comp);
-                    definitions.push((comp.define.clone(), gradient));
+                    defs.push((comp.define.clone(), gradient));
                 }
 
                 Self {
                     color_space: Some(ColorSpace::load(&colors)),
-                    definitions,
+                    definitions: defs.into_boxed_slice(),
                 }
             }
         }

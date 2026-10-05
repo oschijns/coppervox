@@ -1,5 +1,5 @@
-use coppervox_config::color::ColorGradient;
 use coppervox_common::rgb::{RGB8, Rgb};
+use coppervox_config::color::ColorGradient;
 
 /// Size of workgroups
 pub const WORKGROUP: u32 = 256;
@@ -11,34 +11,34 @@ pub const MAX_CNX: u64 = 16;
 pub const INT_SIZE: u64 = 32 / 8;
 
 /// Values transmitted over components are 32-bits
-pub type Value = u32;
+pub type GpuValue = u32;
 
 /// Values transmitted over components are 32-bits
 pub const VALUE_SIZE: usize = 32;
 
 /// WGSL mat4x4<f32>
-pub type Mat4x4 = [[f32; 4]; 4];
+pub type GpuMat4x4 = [[f32; 4]; 4];
 
 /// WGSL vec4<f32>
-pub type Vec4 = [f32; 4];
+pub type GpuVec4 = [f32; 4];
 
 /// WGSL vec3<f32>
-pub type Vec3 = [f32; 3];
+pub type GpuVec3 = [f32; 3];
 
 /// Instance data
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct InstanceData {
+pub struct GpuInstanceData {
     /// Translation to apply to the mesh
-    pub(crate) translate: Vec3,
+    pub(crate) translate: GpuVec3,
 
     /// Index of the color set to pull from the colors buffer
     pub(crate) colors_index: u32,
 }
 
-impl InstanceData {
+impl GpuInstanceData {
     /// Create the per-instance data for one component
-    pub fn new(translate: Vec3, colors_index: u32) -> Self {
+    pub fn new(translate: GpuVec3, colors_index: u32) -> Self {
         Self {
             translate,
             colors_index,
@@ -49,25 +49,25 @@ impl InstanceData {
 /// Colors for a component type
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct ColorPreset {
+pub struct GpuColorGradient {
     /// Color used when the component is fully off (0)
-    pub(crate) off: Vec4,
+    pub(crate) off: GpuVec4,
 
     /// Color used when the component has low power (1)
-    pub(crate) low: Vec4,
+    pub(crate) low: GpuVec4,
 
     /// Color used when the component has high power (u32::MAX)
-    pub(crate) high: Vec4,
+    pub(crate) high: GpuVec4,
 }
 
-impl ColorPreset {
+impl GpuColorGradient {
     /// Create a color preset for a component type
-    pub fn new(off: Vec4, low: Vec4, high: Vec4) -> Self {
+    pub fn new(off: GpuVec4, low: GpuVec4, high: GpuVec4) -> Self {
         Self { off, low, high }
     }
 }
 
-impl From<ColorGradient> for ColorPreset {
+impl From<ColorGradient> for GpuColorGradient {
     fn from(color: ColorGradient) -> Self {
         Self::new(
             to_gpu_color(color.off),
@@ -79,7 +79,7 @@ impl From<ColorGradient> for ColorPreset {
 
 /// Converts an RGBA color to a GPU-compatible color array.
 #[inline]
-fn to_gpu_color(color: RGB8) -> [f32; 4] {
+fn to_gpu_color(color: RGB8) -> GpuVec4 {
     const F: f32 = 1.0 / u8::MAX as f32;
 
     let Rgb { r, g, b } = color;
@@ -88,7 +88,7 @@ fn to_gpu_color(color: RGB8) -> [f32; 4] {
 
 #[repr(u32)]
 #[derive(Debug, Default)]
-pub enum Op {
+pub enum GpuOp {
     /// Non operation
     #[default]
     None = 0,
@@ -119,7 +119,7 @@ pub enum Op {
 }
 
 /// Layouts for the compute shader
-pub struct Layout {
+pub struct GpuLayout {
     /// Bind group index
     #[allow(unused)]
     pub group: u32,
@@ -128,7 +128,7 @@ pub struct Layout {
     pub binding: u32,
 }
 
-impl Layout {
+impl GpuLayout {
     /// Create a new layout corresponding to the compute shader
     #[inline]
     pub const fn new(group: u32, binding: u32) -> Self {

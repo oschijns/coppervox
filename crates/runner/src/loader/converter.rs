@@ -3,9 +3,9 @@ use crate::{
         processor::{CNX_COUNT, Connect, IoOrdering, MeshOrdering},
         uni_mesher::UniQuadDataReader,
     },
-    shader_const::{ColorPreset, InstanceData, Op},
+    shader_const::{GpuColorGradient, GpuInstanceData, GpuOp},
 };
-use coppervox_config::{color::ColorGradient, component::CompType};
+use coppervox_common::List;
 use kiss3d::{procedural::RenderMesh, resource::Material3d};
 use std::{cell::RefCell, rc::Rc};
 
@@ -16,21 +16,21 @@ use std::{cell::RefCell, rc::Rc};
  */
 
 /// Store meshes and objects to be rendered by the GPU
-pub struct Rendering {
+pub struct RenderingData {
     /// GPU mesh to render
     pub render_mesh: RenderMesh,
 
     /// Instances data usable on the GPU
-    pub instances_data: Vec<InstanceData>,
+    pub instances_data: List<GpuInstanceData>,
 
     /// Color sets usable on the GPU
-    pub color_presets: Vec<ColorPreset>,
+    pub color_presets: List<GpuColorGradient>,
 }
 
 /// Material used for rendering
 pub type Material = Rc<RefCell<Box<dyn Material3d + 'static>>>;
 
-impl Rendering {
+impl RenderingData {
     /// GPU mesh to render
     #[inline]
     pub fn render_mesh(&self) -> &RenderMesh {
@@ -39,13 +39,13 @@ impl Rendering {
 
     /// Extra data for components
     #[inline]
-    pub fn instances_data(&self) -> &[InstanceData] {
+    pub fn instances_data(&self) -> &[GpuInstanceData] {
         &self.instances_data
     }
 
     /// Buffer of color presets
     #[inline]
-    pub fn color_presets(&self) -> &[ColorPreset] {
+    pub fn color_presets(&self) -> &[GpuColorGradient] {
         &self.color_presets
     }
 
@@ -53,23 +53,17 @@ impl Rendering {
     pub fn make(
         quad_data: &UniQuadDataReader,
         order: &MeshOrdering,
-        colors: &[(CompType, ColorGradient)],
+        color_presets: List<GpuColorGradient>,
     ) -> Self {
         // Allocate buffers
         let count = order.components().len();
 
         // Allocate the buffers
-        let mut instances_data = Vec::with_capacity(count);
+        let mut data = Vec::with_capacity(count);
         let mut extra = Vec::<[u32; 2]>::with_capacity(count);
 
         // Store indices triplet for *Kiss3D* model format
         let mut indices = Vec::<[[u32; 3]; 3]>::new();
-
-        // Convert color sets to color presets for the shader
-        let color_presets = colors
-            .iter()
-            .map(|(_, c)| ColorPreset::from(*c))
-            .collect::<Vec<_>>();
 
         // Convert the meshes
         for (index, (_, mesh, color_index, bbox)) in order.iter_components().enumerate() {
@@ -77,7 +71,7 @@ impl Rendering {
 
             // Create instance data for the component
             let [x, y, z] = bbox.start;
-            instances_data.push(InstanceData::new(
+            data.push(GpuInstanceData::new(
                 [x as f32, y as f32, z as f32],
                 color_index as u32,
             ));
@@ -85,7 +79,7 @@ impl Rendering {
 
         Self {
             render_mesh: quad_data.to_mesh(indices, extra),
-            instances_data,
+            instances_data: data.into_boxed_slice(),
             color_presets,
         }
     }
@@ -140,7 +134,7 @@ impl Processing {
             }
 
             // Convert component type to operation and combine it with connections count
-            let op = (Op::from_type(comp_type) as u32) | (*count as u32);
+            let op = (GpuOp::from_type(comp_type) as u32) | (*count as u32);
             operations.push(op);
 
             // Get the initial value for the component (if it is a constant)

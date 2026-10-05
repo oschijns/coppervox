@@ -10,7 +10,8 @@ mod bind_render;
 /// Execute the runner
 mod exec;
 
-use crate::shader_const::{ColorPreset, InstanceData, Mat4x4};
+use crate::shader_const::{GpuColorGradient, GpuInstanceData, GpuMat4x4};
+use coppervox_common::List;
 use kiss3d::resource::PipelineCache;
 use wgpu::{BindGroup, BindGroupLayout, Buffer, ComputePipeline};
 
@@ -59,33 +60,33 @@ impl Runner {
 /// Data that have been extracted and analyzed from the voxel model to be submitted to the GPU
 pub struct RunnerData {
     /// Camera projection matrix
-    projection: Mat4x4,
+    projection: GpuMat4x4,
 
     /// Connections between the components
-    connections: Vec<u32>,
+    connections: List<u32>,
 
     /// Operators of the component (and number of connections)
-    operations: Vec<u32>,
+    operations: List<u32>,
 
     /// Per component data (translation & color index)
-    instances_data: Vec<InstanceData>,
+    instances_data: List<GpuInstanceData>,
 
     /// Color presets (to be accessed by the color index)
-    color_presets: Vec<ColorPreset>,
+    color_presets: List<GpuColorGradient>,
 
     /// Initial values for the components (necessary for constant components)
-    inits: Vec<u32>,
+    inits: List<u32>,
 }
 
 impl RunnerData {
     /// Package the data extracted from a circuit for submission to the GPU
     pub fn new(
-        projection: Mat4x4,
-        connections: Vec<u32>,
-        operations: Vec<u32>,
-        instances_data: Vec<InstanceData>,
-        color_presets: Vec<ColorPreset>,
-        inits: Vec<u32>,
+        projection: GpuMat4x4,
+        connections: List<u32>,
+        operations: List<u32>,
+        instances_data: List<GpuInstanceData>,
+        color_presets: List<GpuColorGradient>,
+        inits: List<u32>,
     ) -> Self {
         Self {
             projection,

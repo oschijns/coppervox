@@ -1,6 +1,3 @@
-// Build mesh from quad data
-//pub mod mesher;
-
 /// Build a single mesh from quad data
 pub mod uni_mesher;
 
@@ -10,7 +7,7 @@ pub mod processor;
 /// Convert the data into types supported by the GPU
 pub mod converter;
 
-use crate::shader_const::Op;
+use crate::shader_const::GpuOp;
 use coppervox_analyzer::Label;
 use coppervox_common::Voxel;
 use coppervox_config::component::CompType;
@@ -42,32 +39,7 @@ pub type RcMesh = Rc<RenderMesh>;
 /// Reference to a GPU mesh, held in an `Rc` and protected by a `RefCell`
 pub type RcGpuMesh = Rc<RefCell<GpuMesh3d>>;
 
-/*
-/// Circuit split into processing data and rendering data
-pub struct Circuit {
-    /// Processing data
-    process: Processing,
-
-    /// Rendering data
-    render: Rendering,
-}
-
-impl Circuit {
-    /// Access the processing data for this circuit
-    #[inline]
-    pub fn processing(&self) -> &Processing {
-        &self.process
-    }
-
-    /// Access the rendering data for this circuit
-    #[inline]
-    pub fn rendering(&self) -> &Rendering {
-        &self.render
-    }
-}
-*/
-
-impl Op {
+impl GpuOp {
     /// Get the operation value to submit to the GPU
     #[rustfmt::skip]
     pub fn from_type(comp_type: &CompType) -> Self {
