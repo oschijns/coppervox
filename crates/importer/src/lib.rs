@@ -1,3 +1,6 @@
+/// Method for loading a common voxel file format and convert it into a model
+pub mod import;
+
 /// Load Magica Voxel files
 pub mod magica;
 

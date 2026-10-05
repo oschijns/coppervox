@@ -38,7 +38,7 @@ pub fn import_model(
                 };
 
                 // Convert it into a standard voxel model
-                let remap = magica::Remapper::default();
+                let remap = magica::Remapper::new(vox_ident);
                 Ok(remap.convert(&dotvox, chunk_dim))
             }
             "gox" => {

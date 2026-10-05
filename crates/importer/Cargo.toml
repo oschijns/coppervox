@@ -15,6 +15,7 @@ thiserror.workspace = true
 
 # Main data types for CopperVox
 coppervox_common = { path = "../common" }
+coppervox_config = { path = "../config" }
 
 # Load a config containing Kiss3D data structures
 kiss3d.workspace = true

@@ -1,3 +1,4 @@
+use coppervox_config::identify::VoxelIdentifier;
 use dot_vox::{DotVoxData, Model};
 
 type CVModel = coppervox_common::Model;
@@ -7,21 +8,22 @@ type CVVoxel = coppervox_common::Voxel;
 const SIZE: usize = 256;
 
 /// Remap values read from Magica Voxel to processing value
-pub struct Remapper([CVVoxel; SIZE]);
-
-/// Create a default Remapper
-impl Default for Remapper {
-    #[inline]
-    fn default() -> Self {
-        let mut b = [0; SIZE];
-        for i in 0..SIZE {
-            b[i] = i as CVVoxel;
-        }
-        Self(b)
-    }
+pub struct Remapper<'i> {
+    ident: &'i mut VoxelIdentifier,
+    map: [CVVoxel; SIZE],
 }
 
-impl Remapper {
+/// Create a default Remapper
+impl<'i> Remapper<'i> {
+    #[inline]
+    pub fn new(ident: &'i mut VoxelIdentifier) -> Self {
+        let mut map = [0; SIZE];
+        for i in 0..SIZE {
+            map[i] = i as CVVoxel;
+        }
+        Self { ident, map }
+    }
+
     /// Convert Magica Voxel data into a Model to be processed
     pub fn convert(&self, magica: &DotVoxData, chunk_dim: [usize; 3]) -> CVModel {
         let mut canvas = CVModel::new(chunk_dim);
@@ -39,7 +41,7 @@ impl Remapper {
             // dot_vox stores `voxel.i` as (file palette index - 1), so palette
             // index 1 (the first non-empty color) comes in as 0. Shift back up
             // by 1 so that 0 stays reserved for "no voxel" in our own Model.
-            let v = self.0[voxel.i as usize + 1];
+            let v = self.map[voxel.i as usize + 1];
             canvas[i] = v;
         }
     }
