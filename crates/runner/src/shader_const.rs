@@ -70,9 +70,9 @@ impl GpuColorGradient {
 impl From<ColorGradient> for GpuColorGradient {
     fn from(color: ColorGradient) -> Self {
         Self::new(
-            to_gpu_color(color.off),
-            to_gpu_color(color.on_low),
-            to_gpu_color(color.on_high),
+            to_gpu_color(color.off.0),
+            to_gpu_color(color.on_low.0),
+            to_gpu_color(color.on_high.0),
         )
     }
 }

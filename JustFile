@@ -1,5 +1,10 @@
 
 
+# Run the main program
+run *ARGS:
+    cargo run --package coppervox_main -- {{ARGS}}
+
+
 # Run the custom material example
 material:
     cargo run --package coppervox_main --example material
@@ -8,3 +13,8 @@ material:
 # Run the laboratory
 lab:
     cargo run --package coppervox_main --example lab
+
+# Run the 
+run-adder:
+    cargo run --package coppervox_main -- --model assets/adder.gox --config assets/adder.ron
+

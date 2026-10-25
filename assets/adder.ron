@@ -1,0 +1,11 @@
+Config(
+    mapping: (
+        voxel_ident: COLOR,
+        components: {
+            "#fff1e8": (type: OR  , gradient: (off: "#000000", low: "#111111", high: "#ffffff")),
+            "#ff004d": (type: NAND, gradient: (off: "#000000", low: "#110000", high: "#ff004d")),
+            "#29adff": (type: AND , gradient: (off: "#000000", low: "#001111", high: "#29adff")),
+            "#00e436": (type: OR  , gradient: (off: "#000000", low: "#001100", high: "#00e436")),
+        }
+    )
+)

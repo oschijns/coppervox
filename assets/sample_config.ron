@@ -1,15 +1,17 @@
 Config(
-    voxel_ident: INDEX
-    map: {
-        1: (type: OR, gradient: 0),
-        2: (type: OR, gradient: 1),
-        3: (type: OR, gradient: 2),
-        4: (type: OR, gradient: 3),
-        5: (type: OR, gradient: 4),
-        6: (type: OR, gradient: 5),
-        7: (type: OR, gradient: 6),
-        8: (type: OR, gradient: (off: "#ffffff", low: "#ffffff", high: "#ffffff")),
-    },
+    mapping: (
+        voxel_ident: INDEX,
+        components: {
+            1: (type: OR, gradient: 0),
+            2: (type: OR, gradient: 1),
+            3: (type: OR, gradient: 2),
+            4: (type: OR, gradient: 3),
+            5: (type: OR, gradient: 4),
+            6: (type: OR, gradient: 5),
+            7: (type: OR, gradient: 6),
+            8: (type: OR, gradient: (off: "#ffffff", low: "#ffffff", high: "#ffffff")),
+        }
+    ),
     color_gradients: [
         (off: "#ffffff", low: "#ffffff", high: "#ffffff"),
         (off: "#ff0000", low: "#ff0000", high: "#ff0000"),

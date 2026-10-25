@@ -1,8 +1,8 @@
 use crate::{
-    color::{ColorGradient, GradientIndex},
+    color::{ColorGradient, GradientIndex, HexColor},
     component::CompType,
 };
-use coppervox_common::{Voxel, rgb::RGB8};
+use coppervox_common::Voxel;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -50,13 +50,13 @@ pub enum CompGradient {
 
 /// Define mapping between voxel color and component type and color activation gradiants
 #[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "voxel_ident", rename_all = "UPPERCASE")]
+#[serde(tag = "voxel_ident", content = "components", rename_all = "UPPERCASE")]
 pub enum Mapping {
     /// Identify voxels by index
     Index(BTreeMap<Voxel, Component>),
 
     /// Identify voxels by color
-    Color(BTreeMap<RGB8, Component>),
+    Color(BTreeMap<HexColor, Component>),
 }
 
 impl Config {

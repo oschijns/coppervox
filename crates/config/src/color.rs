@@ -6,20 +6,23 @@ use std::{num::ParseIntError, sync::LazyLock};
 /// Identifier for a color gradient
 pub type GradientIndex = usize;
 
+/// Wrapper for deserializing a color from a hexadecimal string
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub struct HexColor(pub RGB8);
+
 /// Define how a component should be colorized
 #[derive(Debug, Clone, Copy, PartialEq, Default, Deserialize)]
 pub struct ColorGradient {
     /// OFF color (0x0)
-    #[serde(deserialize_with = "deserialize_color")]
-    pub off: RGB8,
+    pub off: HexColor,
 
     /// ON low power color (0x1)
-    #[serde(deserialize_with = "deserialize_color", rename = "low")]
-    pub on_low: RGB8,
+    #[serde(rename = "low")]
+    pub on_low: HexColor,
 
     /// ON high power color (0xFFFF)
-    #[serde(deserialize_with = "deserialize_color", rename = "high")]
-    pub on_high: RGB8,
+    #[serde(rename = "high")]
+    pub on_high: HexColor,
 }
 
 /// Error encountered when reading color data from the configuration
@@ -34,14 +37,19 @@ pub enum ColorError {
     ParseInt(#[from] ParseIntError),
 }
 
-/// Thin wrapper to parse an hexadecimal string into a color
-#[inline]
-fn deserialize_color<'de, D>(deserializer: D) -> Result<RGB8, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    rgb_from_hex(&s).map_err(de::Error::custom)
+impl<'de> Deserialize<'de> for HexColor {
+    /// Thin wrapper to parse an hexadecimal string into a color
+    #[inline]
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match rgb_from_hex(&s) {
+            Ok(rgb) => Ok(Self(rgb)),
+            Err(err) => Err(de::Error::custom(err)),
+        }
+    }
 }
 
 /// Regex for identifying colors encoded as hexadecimal strings

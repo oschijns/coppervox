@@ -68,7 +68,7 @@ impl VoxelIdentifier {
                 for (index, (&color, comp)) in map.iter().enumerate() {
                     // Zero is reserved for empty voxels in the model.
                     let index = index as u32 + 1;
-                    colors.push((color, index));
+                    colors.push((color.0, index));
 
                     let gradient = config.get_gradient(comp);
                     defs.push((comp.define.clone(), gradient));
@@ -98,7 +98,7 @@ impl VoxelIdentifier {
 mod tests {
     use super::VoxelIdentifier;
     use crate::{
-        color::ColorGradient,
+        color::{ColorGradient, HexColor},
         component::CompType,
         mapping::{CompGradient, Component, Config, Mapping},
     };
@@ -113,7 +113,7 @@ mod tests {
             gradient: CompGradient::Gradient(ColorGradient::default()),
         };
         let config = Config {
-            mapping: Mapping::Color(BTreeMap::from([(color, component)])),
+            mapping: Mapping::Color(BTreeMap::from([(HexColor(color), component)])),
             color_gradients: Vec::new(),
         };
 
