@@ -78,7 +78,6 @@ impl Mesher {
             &self.config.faces,
             &mut self.quad_buffer,
         );
-
         // We can then extract the quad data as indices, positions and normals
         reader.read_quads(&self.quad_buffer.quads, &self.config)
     }

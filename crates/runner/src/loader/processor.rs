@@ -131,6 +131,7 @@ fn analyze(model: &Model, reader: &mut UniQuadDataReader) -> Analysis<Rc<MeshInd
     // Config for generating meshes from quad data
     const QUAD_CONFIG: QuadCoordinateConfig = RIGHT_HANDED_Y_UP_CONFIG;
     let mut mesher = Mesher::new(QUAD_CONFIG, 0);
+    reader.read_normals(&QUAD_CONFIG);
 
     // Analyse the model
     Analysis::build(model, &mut mesher, reader)

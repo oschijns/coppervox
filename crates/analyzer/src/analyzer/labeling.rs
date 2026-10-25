@@ -23,99 +23,103 @@ impl LabeledModel {
         // store the association between temporary labels and initial voxels
         let mut association = HashMap::<Label, Voxel>::new();
 
-        /* FIRST PASS */
-        // iterate over the whole matrix a first time
-        for (indexes, &voxel) in model.indexed_iter() {
-            if voxel != 0 {
-                // connectivity mask
-                // first each bit, indicate if the previous cell
-                // on the corresponding axis has the same voxel
-                let mut mask = 0b000usize;
+        // GridMap iterates chunks in hash-map order, but this pass relies on
+        // every negative-axis neighbor having been visited first.
+        let mut voxels = model
+            .indexed_iter()
+            .filter_map(|(index, &voxel)| (voxel != 0).then_some((index, voxel)))
+            .collect::<Vec<_>>();
+        voxels.sort_unstable_by_key(|(index, _)| *index);
 
-                // get voxel of previous cells along X, Y and Z
-                let [ix, iy, iz] = indexes;
+        for (indexes, voxel) in voxels {
+            // connectivity mask
+            // first each bit, indicate if the previous cell
+            // on the corresponding axis has the same voxel
+            let mut mask = 0b000usize;
 
-                // Recover the label that was assign to the
-                // previous cell along the specified axis.
-                // Update the mask accordingly.
-                macro_rules! prev_label {
-                    ($index:expr, $mask:literal) => {{
-                        let __index = $index;
-                        if voxel == model[__index] {
-                            mask |= $mask;
-                            labeled_model[__index]
-                        } else {
-                            0
-                        }
-                    }};
+            // get voxel of previous cells along X, Y and Z
+            let [ix, iy, iz] = indexes;
+
+            // Recover the label that was assign to the
+            // previous cell along the specified axis.
+            // Update the mask accordingly.
+            macro_rules! prev_label {
+                ($index:expr, $mask:literal) => {{
+                    let __index = $index;
+                    if voxel == model[__index] {
+                        mask |= $mask;
+                        labeled_model[__index]
+                    } else {
+                        0
+                    }
+                }};
+            }
+
+            // indexes of the previous cells for each of the axes
+            let label_x = prev_label!([ix - 1, iy, iz], 0b001);
+            let label_y = prev_label!([ix, iy - 1, iz], 0b010);
+            let label_z = prev_label!([ix, iy, iz - 1], 0b100);
+
+            // Set the label in the label matrix and
+            // associate the label with the converted voxel.
+            macro_rules! store_label {
+                ($label:expr) => {{
+                    let __label = $label;
+                    labeled_model[indexes] = __label;
+                    association.insert(__label, voxel.into());
+                }};
+            }
+
+            match mask {
+                // no connection to surrounding cells, start a new island
+                0b000 => {
+                    store_label!(current_label);
+                    disjoint_set.insert(current_label);
+                    current_label += 1;
                 }
 
-                // indexes of the previous cells for each of the axes
-                let label_x = prev_label!([ix - 1, iy, iz], 0b001);
-                let label_y = prev_label!([ix, iy - 1, iz], 0b010);
-                let label_z = prev_label!([ix, iy, iz - 1], 0b100);
-
-                // Set the label in the label matrix and
-                // associate the label with the converted voxel.
-                macro_rules! store_label {
-                    ($label:expr) => {{
-                        let __label = $label;
-                        labeled_model[indexes] = __label;
-                        association.insert(__label, voxel.into());
-                    }};
+                // connection only along X
+                0b001 => {
+                    store_label!(label_x);
                 }
 
-                match mask {
-                    // no connection to surrounding cells, start a new island
-                    0b000 => {
-                        store_label!(current_label);
-                        disjoint_set.insert(current_label);
-                        current_label += 1;
-                    }
-
-                    // connection only along X
-                    0b001 => {
-                        store_label!(label_x);
-                    }
-
-                    // connection only along Y
-                    0b010 => {
-                        store_label!(label_y);
-                    }
-
-                    // connection only along Z
-                    0b100 => {
-                        store_label!(label_z);
-                    }
-
-                    // connection along X and Y
-                    0b011 => {
-                        store_label!(min(label_x, label_y));
-                        disjoint_set.link(label_x, label_y);
-                    }
-
-                    // connection along Y and Z
-                    0b110 => {
-                        store_label!(min(label_y, label_z));
-                        disjoint_set.link(label_y, label_z);
-                    }
-
-                    // connection along Z and X
-                    0b101 => {
-                        store_label!(min(label_z, label_x));
-                        disjoint_set.link(label_z, label_x);
-                    }
-
-                    // connection along all three axes
-                    0b111 => {
-                        store_label!(min(label_x, min(label_y, label_z)));
-                        disjoint_set.link(label_x, label_y);
-                        disjoint_set.link(label_y, label_z);
-                    }
-
-                    // should never happen
-                    _ => {}
+                // connection only along Y
+                0b010 => {
+                    store_label!(label_y);
                 }
+
+                // connection only along Z
+                0b100 => {
+                    store_label!(label_z);
+                }
+
+                // connection along X and Y
+                0b011 => {
+                    store_label!(min(label_x, label_y));
+                    disjoint_set.link(label_x, label_y);
+                }
+
+                // connection along Y and Z
+                0b110 => {
+                    store_label!(min(label_y, label_z));
+                    disjoint_set.link(label_y, label_z);
+                }
+
+                // connection along Z and X
+                0b101 => {
+                    store_label!(min(label_z, label_x));
+                    disjoint_set.link(label_z, label_x);
+                }
+
+                // connection along all three axes
+                0b111 => {
+                    store_label!(min(label_x, min(label_y, label_z)));
+                    disjoint_set.link(label_x, label_y);
+                    disjoint_set.link(label_y, label_z);
+                }
+
+                // should never happen
+                _ => {}
             }
         }
 
@@ -181,5 +185,26 @@ impl IslandInfo {
             },
             voxels_count: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LabeledModel;
+    use coppervox_common::Model;
+
+    #[test]
+    fn joins_matching_voxels_across_chunk_boundaries() {
+        let mut model = Model::new([12, 12, 12]);
+        for x in -13..=-10 {
+            model[[x, 0, 0]] = 1;
+        }
+        model[[-1, 0, 0]] = 1;
+        model[[0, 0, 0]] = 1;
+        model[[1, 0, 0]] = 1;
+
+        let labeled = LabeledModel::from_model(&model);
+
+        assert_eq!(labeled.islands.len(), 2);
     }
 }

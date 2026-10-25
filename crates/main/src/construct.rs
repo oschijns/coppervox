@@ -11,7 +11,11 @@ use coppervox_runner::{
     runner::{Runner, RunnerData},
     shader_const::{GpuColorGradient, GpuMat4x4},
 };
-use kiss3d::{glamx::Vec3, procedural::RenderMesh, resource::Material3d};
+use kiss3d::{
+    glamx::Vec3,
+    procedural::{IndexBuffer, RenderMesh},
+    resource::Material3d,
+};
 use std::{cell::RefCell, rc::Rc};
 
 /// Identify matrix to prepare the projection matrix for the camera
@@ -26,6 +30,9 @@ const IDENTITY_MATRIX: GpuMat4x4 = [
 pub struct Construct {
     /// Mesh depicting the circuit
     pub render_mesh: RenderMesh,
+
+    /// Circuit mesh with component translations baked in for standard-material previews
+    pub preview_mesh: RenderMesh,
 
     /// Material based on a Runner
     pub material: Rc<RefCell<Box<dyn Material3d + 'static>>>,
@@ -61,6 +68,15 @@ impl Construct {
         if render.instances_data.is_empty() {
             anyhow::bail!("The imported model contains no renderable components");
         }
+        let translations = ordered
+            .meshes()
+            .iter_components()
+            .map(|(_, _, _, bounds)| {
+                let [x, y, z] = bounds.start;
+                Vec3::new(x as f32, y as f32, z as f32)
+            })
+            .collect::<Vec<_>>();
+        let preview_mesh = make_preview_mesh(&render.render_mesh, &translations)?;
 
         // Center on the actual bounds, which may not start at the origin.
         let bounds = ordered.bounding_box();
@@ -91,11 +107,88 @@ impl Construct {
 
         Ok(Self {
             render_mesh: render.render_mesh,
+            preview_mesh,
             material: Rc::new(RefCell::new(
                 Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
             )),
             center,
             camera_offset,
         })
+    }
+}
+
+fn make_preview_mesh(
+    mesh: &RenderMesh,
+    translations: &[Vec3],
+) -> Result<RenderMesh, anyhow::Error> {
+    let IndexBuffer::Split(faces) = &mesh.indices else {
+        anyhow::bail!("Expected a split index buffer for the circuit mesh");
+    };
+    let uvs = mesh
+        .uvs
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Circuit mesh is missing component index data"))?;
+
+    let mut coords = Vec::with_capacity(faces.len() * 3);
+    let mut indices = Vec::with_capacity(faces.len());
+    for face in faces {
+        let mut triangle = [0; 3];
+        for (corner_index, [vertex_index, _, component_index]) in face.iter().enumerate() {
+            let translation = translations
+                .get(*component_index as usize)
+                .ok_or_else(|| anyhow::anyhow!("Circuit mesh has an invalid component index"))?;
+            if *vertex_index as usize >= mesh.coords.len() || *component_index as usize >= uvs.len()
+            {
+                anyhow::bail!("Circuit mesh has an invalid vertex or UV index");
+            }
+
+            triangle[corner_index] = coords.len() as u32;
+            coords.push(mesh.coords[*vertex_index as usize] + *translation);
+        }
+        indices.push(triangle);
+    }
+
+    if indices.is_empty() {
+        anyhow::bail!(
+            "The generated circuit mesh contains no triangles ({} source vertices, {} source triangles, {} component translations)",
+            mesh.coords.len(),
+            mesh.num_triangles(),
+            translations.len()
+        );
+    }
+
+    let mut preview = RenderMesh::new(coords, None, None, Some(IndexBuffer::Unified(indices)));
+    preview.recompute_normals();
+    Ok(preview)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::make_preview_mesh;
+    use kiss3d::{
+        glamx::{Vec2, Vec3},
+        procedural::{IndexBuffer, RenderMesh},
+    };
+
+    #[test]
+    fn preview_mesh_applies_instance_translations() {
+        let mesh = RenderMesh::new(
+            vec![Vec3::ZERO, Vec3::X, Vec3::Y],
+            Some(vec![Vec3::Z]),
+            Some(vec![Vec2::ZERO]),
+            Some(IndexBuffer::Split(vec![[[0, 0, 0], [1, 0, 0], [2, 0, 0]]])),
+        );
+
+        let preview = make_preview_mesh(&mesh, &[Vec3::new(10.0, 20.0, 30.0)]).unwrap();
+
+        assert_eq!(
+            preview.coords,
+            vec![
+                Vec3::new(10.0, 20.0, 30.0),
+                Vec3::new(11.0, 20.0, 30.0),
+                Vec3::new(10.0, 21.0, 30.0),
+            ]
+        );
+        assert_eq!(preview.num_triangles(), 1);
     }
 }

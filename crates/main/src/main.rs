@@ -18,6 +18,10 @@ pub struct Cli {
 
     #[arg(short, long)]
     config: PathBuf,
+
+    /// Render the generated circuit mesh with a standard material instead of the Runner shader
+    #[arg(long)]
+    preview_mesh: bool,
 }
 
 #[kiss3d::main]
@@ -37,17 +41,28 @@ async fn main() {
 
     // Setup the rendering of the scene
     let mut window = Window::new("CopperVox").await;
-    let mut camera = OrbitCamera3d::new(construct.camera_offset, Vec3::ZERO);
+    let mut camera =
+        OrbitCamera3d::new(construct.center + construct.camera_offset, construct.center);
     let mut scene = SceneNode3d::empty();
     scene
         .add_light(Light::directional(Vec3::NEG_Y))
         .set_position(Vec3::ZERO);
 
-    // Supply the circuit to the scene
-    scene
-        .add_render_mesh(construct.render_mesh, Vec3::ONE)
-        .set_material(construct.material)
-        .set_position(-construct.center);
+    // Preview the generated geometry independently of the custom Runner pipeline.
+    if cli.preview_mesh {
+        println!(
+            "Preview mesh: {} vertices, {} triangles",
+            construct.preview_mesh.coords.len(),
+            construct.preview_mesh.num_triangles()
+        );
+        scene
+            .add_render_mesh(construct.preview_mesh, Vec3::ONE)
+            .set_color(MAGENTA);
+    } else {
+        scene
+            .add_render_mesh(construct.render_mesh, Vec3::ONE)
+            .set_material(construct.material);
+    }
 
     // main loop
     while window.render_3d(&mut scene, &mut camera).await {}

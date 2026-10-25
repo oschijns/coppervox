@@ -15,6 +15,11 @@ impl<M> ShapeSet<M> {
                 island.bounding_box.grow_with(&index);
             }
         }
+        for island in model.islands.values_mut() {
+            for end in &mut island.bounding_box.end {
+                *end += 1;
+            }
+        }
 
         /* SECOND PASS */
         let count = model.islands.len();
@@ -39,25 +44,31 @@ impl<M> ShapeSet<M> {
             bitmatrix.resize(dx * dy * dz, false);
 
             // iterate over the area covered by the island
-            for ([ix, iy, iz], cell_label) in model.labeled_model.bounded_iter(island.bounding_box)
-            {
-                if label == cell_label {
-                    // count the cell as part of the island
-                    island.voxels_count += 1;
+            let [sx, sy, sz] = island.bounding_box.start;
+            for iz in sz..island.bounding_box.end[2] {
+                for iy in sy..island.bounding_box.end[1] {
+                    for ix in sx..island.bounding_box.end[0] {
+                        if label != &model.labeled_model[[ix, iy, iz]] {
+                            continue;
+                        }
 
-                    // index to set in the matrix generated
-                    let [sx, sy, sz] = island.bounding_box.start;
-                    let x = (ix - sx) as usize;
-                    let y = (iy - sy) as usize;
-                    let z = (iz - sz) as usize;
-                    let index = x + dx * (y + dy * z);
-                    bitmatrix.set(index, true);
+                        // count the cell as part of the island
+                        island.voxels_count += 1;
+
+                        // index to set in the matrix generated
+                        let x = (ix - sx) as usize;
+                        let y = (iy - sy) as usize;
+                        let z = (iz - sz) as usize;
+                        let index = x + dx * (y + dy * z);
+                        bitmatrix.set(index, true);
+                    }
                 }
             }
 
             // generate a hash for the matrix
             let hash = {
                 let mut hasher = DefaultHasher::new();
+                dimensions.hash(&mut hasher);
                 bitmatrix.hash(&mut hasher);
                 hasher.finish()
             };
@@ -78,5 +89,66 @@ impl<M> ShapeSet<M> {
             shapes,
             meshes,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ShapeSet;
+    use crate::{
+        Mesher, QuadsReader,
+        analyzer::{LabeledModel, ShapeData},
+    };
+    use block_mesh::{QuadBuffer, QuadCoordinateConfig, RIGHT_HANDED_Y_UP_CONFIG};
+    use coppervox_common::Model;
+
+    struct QuadCounter;
+
+    impl QuadsReader<usize> for QuadCounter {
+        fn read_quads(&mut self, quads: &QuadBuffer, _: &QuadCoordinateConfig) -> usize {
+            quads.groups.iter().map(Vec::len).sum()
+        }
+    }
+
+    #[test]
+    fn single_voxel_component_produces_six_quads() {
+        let mut model = Model::new([4, 4, 4]);
+        model[[1, 2, -1]] = 1;
+
+        let mut labeled = LabeledModel::from_model(&model);
+        let mut shapes = ShapeSet::<usize>::identify_shapes(&mut labeled);
+        let mut mesher = Mesher::new(RIGHT_HANDED_Y_UP_CONFIG, 0);
+        shapes.build_meshes(&mut mesher, &mut QuadCounter);
+
+        assert_eq!(shapes.shapes.values().next().unwrap().dimensions, [1, 1, 1]);
+        assert_eq!(shapes.meshes.values().copied().sum::<usize>(), 6);
+    }
+
+    #[test]
+    fn same_occupancy_with_different_dimensions_remains_distinct() {
+        let mut model = Model::new([8, 8, 8]);
+        model[[0, 0, 0]] = 1;
+        model[[1, 0, 0]] = 1;
+        model[[1, 0, 1]] = 1;
+        model[[4, 4, 4]] = 2;
+        model[[5, 4, 4]] = 2;
+        model[[5, 5, 4]] = 2;
+
+        let mut labeled = LabeledModel::from_model(&model);
+        let shapes = ShapeSet::<ShapeData>::identify_shapes(&mut labeled);
+
+        assert_eq!(shapes.shapes.len(), 2);
+        assert!(
+            shapes
+                .shapes
+                .values()
+                .any(|shape| shape.dimensions == [2, 1, 2])
+        );
+        assert!(
+            shapes
+                .shapes
+                .values()
+                .any(|shape| shape.dimensions == [2, 2, 1])
+        );
     }
 }

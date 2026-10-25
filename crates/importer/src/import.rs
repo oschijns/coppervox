@@ -1,5 +1,6 @@
-use coppervox_common::{Model, color_space::ALPHA_THRESHOLD, rgb::RGB8};
+use coppervox_common::{EMPTY_VOXEL, Model, color_space::ALPHA_THRESHOLD, rgb::RGB8};
 use coppervox_config::identify::VoxelIdentifier;
+use goxl_voxcore::GoxlExt;
 use std::path::Path;
 use ty_math::TyTransformF64;
 use voxconv::{DependenciesImpl, ReadFormat, ext::load_with_ext};
@@ -17,6 +18,7 @@ pub fn import_model(
 
         let vox = load_with_ext(&DependenciesImpl, format, path)?;
         let mut model = Model::new(chunk_dim);
+        let goxl_ext = vox.ext().downcast_ref::<GoxlExt>();
         let mut placements = Vec::new();
 
         for &root_id in vox.root_hierarchy_node_ids() {
@@ -30,6 +32,7 @@ pub fn import_model(
                     &vox,
                     object,
                     TyTransformF64::IDENTITY,
+                    glam::DVec3::ZERO,
                     vox_ident,
                 )?;
             }
@@ -40,9 +43,32 @@ pub fn import_model(
                     .ok_or(ImportError::InvalidScene)?;
                 let transform = parent_transform.compose(&node.transform);
 
-                for &object_id in &node.child_object_ids {
-                    let object = vox.object(object_id).ok_or(ImportError::InvalidScene)?;
-                    write_object(&mut model, &vox, object, transform, vox_ident)?;
+                if let Some(layer) = goxl_ext.and_then(|ext| ext.layers.get(&node_id)) {
+                    for placement in &layer.placements {
+                        let object = vox
+                            .object(placement.object_id)
+                            .ok_or(ImportError::InvalidScene)?;
+                        write_object(
+                            &mut model,
+                            &vox,
+                            object,
+                            transform,
+                            goxl_placement_offset(placement.position),
+                            vox_ident,
+                        )?;
+                    }
+                } else {
+                    for &object_id in &node.child_object_ids {
+                        let object = vox.object(object_id).ok_or(ImportError::InvalidScene)?;
+                        write_object(
+                            &mut model,
+                            &vox,
+                            object,
+                            transform,
+                            glam::DVec3::ZERO,
+                            vox_ident,
+                        )?;
+                    }
                 }
 
                 for &child_id in &node.child_node_ids {
@@ -62,6 +88,7 @@ fn write_object(
     vox: &voxconv::ext::VoxconvVoxMain,
     object: &voxcore::VoxObject,
     transform: TyTransformF64,
+    offset: glam::DVec3,
     vox_ident: &VoxelIdentifier,
 ) -> Result<(), ImportError> {
     let cell_colors = if vox_ident.color_space.is_some() {
@@ -92,8 +119,15 @@ fn write_object(
             let Some(material_id) = object.voxel_material(voxel_id, layer_id) else {
                 continue;
             };
+            if material_id.to_u32() == EMPTY_VOXEL {
+                continue;
+            }
             material_id.to_u32().saturating_add(1)
         };
+
+        if voxel == EMPTY_VOXEL {
+            continue;
+        }
 
         let position = object
             .voxel_position(voxel_id)
@@ -103,7 +137,7 @@ fn write_object(
             f64::from(position.x) + f64::from(origin.x) + 0.5,
             f64::from(position.y) + f64::from(origin.y) + 0.5,
             f64::from(position.z) + f64::from(origin.z) + 0.5,
-        ));
+        )) + offset;
         if !world_position.is_finite() {
             return Err(ImportError::InvalidPosition);
         }
@@ -113,6 +147,15 @@ fn write_object(
     }
 
     Ok(())
+}
+
+fn goxl_placement_offset(position: [i32; 3]) -> glam::DVec3 {
+    // Goxel is Z-up; voxcore uses Y-up with Goxel's Y axis reflected into -Z.
+    glam::DVec3::new(
+        f64::from(position[0]),
+        f64::from(position[2]),
+        -f64::from(position[1]),
+    )
 }
 
 fn voxel_coordinate(position: glam::DVec3) -> Result<[isize; 3], ImportError> {
@@ -189,7 +232,15 @@ pub enum ImportError {
 
 #[cfg(test)]
 mod tests {
-    use super::{ImportError, voxel_coordinate};
+    use super::{ImportError, goxl_placement_offset, voxel_coordinate};
+
+    #[test]
+    fn maps_goxl_z_up_placements_to_voxcore_y_up_axes() {
+        assert_eq!(
+            goxl_placement_offset([4, 7, -2]),
+            glam::DVec3::new(4.0, -2.0, -7.0)
+        );
+    }
 
     #[test]
     fn maps_transformed_voxel_centers_to_nearest_grid_cell() {

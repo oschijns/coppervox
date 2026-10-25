@@ -140,6 +140,8 @@ impl QuadsReader<Rc<MeshIndices>> for UniQuadDataReader {
             let mut coord_indexes = [0u32; 4];
             for quad in group.iter() {
                 for (i, &coord) in face.quad_corners(quad).iter().enumerate() {
+                    let coord = coord - UVec3::ONE;
+
                     // Get the index of the 3D point in the `coords` buffer
                     if let Some(pos) = self.coords.iter().position(|&c| c == coord) {
                         coord_indexes[i] = pos as u32;
