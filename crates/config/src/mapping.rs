@@ -2,7 +2,7 @@ use crate::{
     color::{ColorGradient, GradientIndex},
     component::CompType,
 };
-use coppervox_common::{Voxel, color_space::ColorSpace, rgb::RGB8};
+use coppervox_common::{Voxel, rgb::RGB8};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 

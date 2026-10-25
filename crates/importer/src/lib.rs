@@ -2,7 +2,7 @@
 pub mod import;
 
 /// Load Magica Voxel files
-pub mod magica;
+//pub mod magica;
 
 // Load Goxel files
 //pub mod goxel;

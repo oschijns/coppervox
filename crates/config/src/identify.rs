@@ -61,11 +61,14 @@ impl VoxelIdentifier {
                 // one for recovering the component config from its index
                 let count = map.len();
                 let mut colors = Vec::with_capacity(count);
-                let mut defs = Vec::with_capacity(count);
+                let mut defs = Vec::with_capacity(count + 1);
+                defs.push(Default::default());
 
                 // Associate the color with a voxel index
                 for (index, (&color, comp)) in map.iter().enumerate() {
-                    colors.push((color, index as u32));
+                    // Zero is reserved for empty voxels in the model.
+                    let index = index as u32 + 1;
+                    colors.push((color, index));
 
                     let gradient = config.get_gradient(comp);
                     defs.push((comp.define.clone(), gradient));
@@ -88,5 +91,48 @@ impl VoxelIdentifier {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::VoxelIdentifier;
+    use crate::{
+        color::ColorGradient,
+        component::CompType,
+        mapping::{CompGradient, Component, Config, Mapping},
+    };
+    use coppervox_common::rgb::RGB8;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn color_mappings_leave_zero_reserved_for_empty_voxels() {
+        let color = RGB8::new(12, 34, 56);
+        let component = Component {
+            define: CompType::Or,
+            gradient: CompGradient::Gradient(ColorGradient::default()),
+        };
+        let config = Config {
+            mapping: Mapping::Color(BTreeMap::from([(color, component)])),
+            color_gradients: Vec::new(),
+        };
+
+        let ident = VoxelIdentifier::make(config);
+
+        assert_eq!(
+            ident
+                .color_space
+                .as_ref()
+                .and_then(|space| space.get_color_index(color)),
+            Some(1)
+        );
+        assert_eq!(
+            ident.get_definition(0).map(|(component, _)| component),
+            Some(CompType::Const(0))
+        );
+        assert_eq!(
+            ident.get_definition(1).map(|(component, _)| component),
+            Some(CompType::Or)
+        );
     }
 }

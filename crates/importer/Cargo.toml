@@ -36,6 +36,8 @@ dot_vox = "5.2"
 
 # Handle multiple voxel formats
 voxconv = "0.2"
+voxcore = { version = "0.3", features = ["color"] }
+ty-math = "0.3"
 
 # Aseprite
 aseprite-loader = "0.4"
