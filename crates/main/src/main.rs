@@ -37,7 +37,7 @@ async fn main() {
 
     // Setup the rendering of the scene
     let mut window = Window::new("CopperVox").await;
-    let mut camera = OrbitCamera3d::new(Vec3::new(0.0, 20.0, 20.0), Vec3::ZERO);
+    let mut camera = OrbitCamera3d::new(construct.camera_offset, Vec3::ZERO);
     let mut scene = SceneNode3d::empty();
     scene
         .add_light(Light::directional(Vec3::NEG_Y))

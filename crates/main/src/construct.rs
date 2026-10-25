@@ -32,6 +32,9 @@ pub struct Construct {
 
     /// Center of the model
     pub center: Vec3,
+
+    /// Camera position relative to the centered model
+    pub camera_offset: Vec3,
 }
 
 impl Construct {
@@ -55,10 +58,26 @@ impl Construct {
             .map(|(_, g)| GpuColorGradient::from(*g))
             .collect::<Box<[_]>>();
         let render = RenderingData::make(ordered.quad_data(), ordered.meshes(), color_presets);
+        if render.instances_data.is_empty() {
+            anyhow::bail!("The imported model contains no renderable components");
+        }
 
-        // Get the center of the circuit
-        let [x, y, z] = ordered.center();
-        let center = Vec3::new(x as f32, y as f32, z as f32) * 0.5;
+        // Center on the actual bounds, which may not start at the origin.
+        let bounds = ordered.bounding_box();
+        let [min_x, min_y, min_z] = bounds.start;
+        let [max_x, max_y, max_z] = bounds.end;
+        let center = Vec3::new(
+            ((min_x as f64 + max_x as f64) * 0.5) as f32,
+            ((min_y as f64 + max_y as f64) * 0.5) as f32,
+            ((min_z as f64 + max_z as f64) * 0.5) as f32,
+        );
+
+        let size_x = (max_x as f64 - min_x as f64).max(1.0);
+        let size_y = (max_y as f64 - min_y as f64).max(1.0);
+        let size_z = (max_z as f64 - min_z as f64).max(1.0);
+        let camera_distance =
+            ((size_x * size_x + size_y * size_y + size_z * size_z).sqrt() * 1.75).max(4.0) as f32;
+        let camera_offset = Vec3::splat(camera_distance / 3.0_f32.sqrt());
 
         // Group runner data
         let data = RunnerData::new(
@@ -76,6 +95,7 @@ impl Construct {
                 Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
             )),
             center,
+            camera_offset,
         })
     }
 }
