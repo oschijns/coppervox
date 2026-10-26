@@ -6,7 +6,10 @@ mod construct;
 
 use crate::construct::Construct;
 use clap::Parser;
-use kiss3d::prelude::*;
+use kiss3d::{
+    event::{Action, WindowEvent},
+    prelude::*,
+};
 use std::{path::PathBuf, process::exit};
 
 /// Command line interface
@@ -65,5 +68,18 @@ async fn main() {
     }
 
     // main loop
-    while window.render_3d(&mut scene, &mut camera).await {}
+    while window.render_3d(&mut scene, &mut camera).await {
+        for event in window.events().iter() {
+            match event.value {
+                WindowEvent::Key(key, Action::Press, _) => {
+                    construct.pressed_keys.borrow_mut().insert(key);
+                }
+                WindowEvent::Key(key, Action::Release, _) => {
+                    construct.pressed_keys.borrow_mut().remove(&key);
+                }
+                WindowEvent::Focus(false) => construct.pressed_keys.borrow_mut().clear(),
+                _ => {}
+            }
+        }
+    }
 }

@@ -5,7 +5,7 @@ use serde::Deserialize;
 /// The type of component
 #[repr(u32)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Deserialize)]
-#[serde(rename_all = "UPPERCASE")]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum CompType {
     /// constant value
     Const(Value) = 0,

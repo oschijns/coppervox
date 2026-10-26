@@ -299,6 +299,12 @@ impl IoOrdering {
         &self.components
     }
 
+    /// Return the processing-buffer index for a component label.
+    #[inline]
+    pub fn index_of(&self, label: Label) -> Option<usize> {
+        self.label_index.get(&label).copied()
+    }
+
     /// Returns the range of inputs.
     #[inline]
     pub fn range_inputs(&self) -> [usize; 2] {

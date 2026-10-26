@@ -141,8 +141,8 @@ impl RenderBinding {
                 &buffers.color_presets,
             ),
             ping_pong: [
-                create_process_bind(ctx, "ping", &layout.layout_process, pong),
-                create_process_bind(ctx, "pong", &layout.layout_process, ping),
+                create_process_bind(ctx, "ping", &layout.layout_process, ping),
+                create_process_bind(ctx, "pong", &layout.layout_process, pong),
             ],
         }
     }

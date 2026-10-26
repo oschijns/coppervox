@@ -17,6 +17,9 @@ use std::collections::BTreeMap;
 /// Configuration loaded from a text file such as TOML
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    /// Tick rate to run the simulation
+    pub tick_rate: u32,
+
     /// Associate a voxel value with a type of component
     pub mapping: Mapping,
 

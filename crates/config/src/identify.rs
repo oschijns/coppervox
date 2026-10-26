@@ -113,6 +113,7 @@ mod tests {
             gradient: CompGradient::Gradient(ColorGradient::default()),
         };
         let config = Config {
+            tick_rate: 10,
             mapping: Mapping::Color(BTreeMap::from([(HexColor(color), component)])),
             color_gradients: Vec::new(),
         };

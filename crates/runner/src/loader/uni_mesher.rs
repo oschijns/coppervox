@@ -177,17 +177,19 @@ impl MeshIndices {
     pub fn push_to(
         &self,
         comp_index: usize,
+        io_index: usize,
         indices: &mut Vec<[[u32; 3]; 3]>,
         extra: &mut Vec<[u32; 2]>,
     ) {
         // convert the index buffer into a format supported by Kiss3D
         let id = comp_index as u32;
+        let process_id = io_index as u32;
         for &([i0, i1, i2, i3, i4, i5], norm) in self.indices.iter() {
             indices.push([[i0, norm, id], [i1, norm, id], [i2, norm, id]]);
             indices.push([[i3, norm, id], [i4, norm, id], [i5, norm, id]]);
         }
 
-        // store component index into extra buffer
-        extra.push([id, id]);
+        // Store the render-order and processing-order indexes separately.
+        extra.push([id, process_id]);
     }
 }

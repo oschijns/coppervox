@@ -45,9 +45,10 @@ impl<M> ShapeSet<M> {
 
             // iterate over the area covered by the island
             let [sx, sy, sz] = island.bounding_box.start;
-            for iz in sz..island.bounding_box.end[2] {
-                for iy in sy..island.bounding_box.end[1] {
-                    for ix in sx..island.bounding_box.end[0] {
+            let [ex, ey, ez] = island.bounding_box.end;
+            for iz in sz..ez {
+                for iy in sy..ey {
+                    for ix in sx..ex {
                         if label != &model.labeled_model[[ix, iy, iz]] {
                             continue;
                         }

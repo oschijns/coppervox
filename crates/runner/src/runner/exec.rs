@@ -15,7 +15,7 @@ use kiss3d::{
     resource::{GpuData, GpuMesh3d, Material3d, RenderContext, vertex_index::VERTEX_INDEX_FORMAT},
     scene::{InstancesBuffer3d, ObjectData3d},
 };
-use std::any::Any;
+use std::{any::Any, time::Instant};
 
 impl Material3d for Runner {
     /// Create the GPU data
@@ -33,7 +33,7 @@ impl Material3d for Runner {
         Box::new(RunnerGpuData::new(&ctx, buffers))
     }
 
-    /// Run one simulation tick before the scene is drawn
+    /// Run configured simulation ticks before the scene is drawn
     fn prepare(
         &mut self,
         pass: usize,
@@ -71,32 +71,60 @@ impl Material3d for Runner {
             bytemuck::bytes_of(&view_proj.to_cols_array_2d()),
         );
 
-        // Pick the same buffer `render()` will read from once it flips `flip_flop`
-        let flip_flop = if self.flip_flop { 1 } else { 0 };
+        let now = Instant::now();
+        self.tick_accumulator += now.duration_since(self.last_tick);
+        self.last_tick = now;
 
-        // Number of components to process, and the workgroups needed to cover them
+        let mut ticks = 0;
+        while self.tick_accumulator >= self.tick_interval {
+            self.tick_accumulator -= self.tick_interval;
+            ticks += 1;
+        }
+        if ticks == 0 {
+            return;
+        }
+
+        let pressed_keys = self.pressed_keys.borrow();
+        for binding in self.input_bindings.iter() {
+            let value = if pressed_keys.contains(&binding.key) {
+                binding.value
+            } else {
+                0
+            };
+            let offset = (binding.component * size_of::<u32>()) as u64;
+            let bytes = bytemuck::bytes_of(&value);
+            for buffer in &gpu_data.buffers.ping_pong {
+                ctx.write_buffer(buffer, offset, bytes);
+            }
+        }
+
+        // The render pass encoder used by kiss3d isn't handed to `prepare`, so
+        // record and submit compute ticks on our own command buffer. It is
+        // submitted before kiss3d's frame encoder, ensuring rendering sees the
+        // latest completed tick.
+        let mut encoder = ctx.create_command_encoder(Some("logic_compute"));
         let count = self.data.operations.len() as u32;
         let workgroups = count.div_ceil(WORKGROUP);
-
-        // The render pass encoder used by kiss3d isn't handed to `prepare`, so we
-        // record and submit the compute dispatch on its own command buffer. It is
-        // submitted to the queue here, strictly before kiss3d submits its own frame
-        // encoder at the end of `render_3d`, so the GPU is guaranteed to run this
-        // compute pass first.
-        let mut encoder = ctx.create_command_encoder(Some("logic_compute"));
-        {
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("logic_compute_pass"),
-                timestamp_writes: None,
-            });
-            compute_pass.set_pipeline(&gpu_data.compute_pipeline);
-            compute_pass.set_bind_group(BIND_CONNECTIONS.group, &gpu_data.compute.bind_const, &[]);
-            compute_pass.set_bind_group(
-                BIND_INPUTS.group,
-                &gpu_data.compute.ping_pong[flip_flop],
-                &[],
-            );
-            compute_pass.dispatch_workgroups(workgroups, 1, 1);
+        for _ in 0..ticks {
+            {
+                let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("logic_compute_pass"),
+                    timestamp_writes: None,
+                });
+                compute_pass.set_pipeline(&gpu_data.compute_pipeline);
+                compute_pass.set_bind_group(
+                    BIND_CONNECTIONS.group,
+                    &gpu_data.compute.bind_const,
+                    &[],
+                );
+                compute_pass.set_bind_group(
+                    BIND_INPUTS.group,
+                    &gpu_data.compute.ping_pong[self.current_buffer],
+                    &[],
+                );
+                compute_pass.dispatch_workgroups(workgroups, 1, 1);
+            }
+            self.current_buffer = 1 - self.current_buffer;
         }
         ctx.submit([encoder.finish()]);
     }
@@ -154,10 +182,6 @@ impl Material3d for Runner {
             None => return,
         };
 
-        // Switch between the two buffers
-        let flip_flop = if self.flip_flop { 1 } else { 0 };
-        self.flip_flop = !self.flip_flop;
-
         // Prepare the pipeline to render the circuit
         let pipeline = gpu_data.render_pipeline.get(context.sample_count);
         render_pass.set_pipeline(&pipeline);
@@ -165,7 +189,7 @@ impl Material3d for Runner {
         render_pass.set_bind_group(BIND_INSTANCES_DATA.group, &gpu_data.render.bind_static, &[]);
         render_pass.set_bind_group(
             BIND_PROCESSED.group,
-            &gpu_data.render.ping_pong[flip_flop],
+            &gpu_data.render.ping_pong[self.current_buffer],
             &[],
         );
 

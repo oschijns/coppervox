@@ -12,7 +12,14 @@ mod exec;
 
 use crate::shader_const::{GpuColorGradient, GpuInstanceData, GpuMat4x4};
 use coppervox_common::List;
-use kiss3d::resource::PipelineCache;
+use kiss3d::{event::Key, resource::PipelineCache};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    num::NonZeroU32,
+    rc::Rc,
+    time::{Duration, Instant},
+};
 use wgpu::{BindGroup, BindGroupLayout, Buffer, ComputePipeline};
 
 /*
@@ -43,16 +50,69 @@ pub struct Runner {
     /// Data to construct the runner
     data: RunnerData,
 
-    /// flip-flop latch
-    flip_flop: bool,
+    /// Component indices and key/value pairs controlled by the keyboard
+    input_bindings: List<InputBinding>,
+
+    /// Keys currently held down
+    pressed_keys: KeyboardState,
+
+    /// Index of the buffer containing the latest simulation values
+    current_buffer: usize,
+
+    /// Interval between simulation ticks
+    tick_interval: Duration,
+
+    /// Elapsed time accumulated toward the next simulation tick
+    tick_accumulator: Duration,
+
+    /// Time of the previous simulation update
+    last_tick: Instant,
+}
+
+/// Shared set of keys currently held down by the window.
+pub type KeyboardState = Rc<RefCell<HashSet<Key>>>;
+
+/// A keyboard-controlled circuit input.
+#[derive(Debug, Clone, Copy)]
+pub struct InputBinding {
+    /// Component index in the processing buffers
+    pub component: usize,
+
+    /// Key that controls this component
+    pub key: Key,
+
+    /// Value produced while the key is held
+    pub value: u32,
 }
 
 impl Runner {
     /// Create a runner from pre-computed circuit data
     pub fn new(data: RunnerData) -> Self {
+        Self::with_inputs(
+            data,
+            NonZeroU32::new(60).expect("60 is non-zero"),
+            Box::new([]),
+            KeyboardState::default(),
+        )
+    }
+
+    /// Create a runner with keyboard inputs and a configured simulation rate.
+    pub fn with_inputs(
+        data: RunnerData,
+        tick_rate: NonZeroU32,
+        input_bindings: List<InputBinding>,
+        pressed_keys: KeyboardState,
+    ) -> Self {
+        let tick_interval =
+            Duration::from_secs_f64(1.0 / f64::from(tick_rate.get())).max(Duration::from_nanos(1));
         Self {
             data,
-            flip_flop: false,
+            input_bindings,
+            pressed_keys,
+            current_buffer: 0,
+            tick_interval,
+            tick_accumulator: tick_interval,
+            last_tick: Instant::now(),
         }
     }
 }

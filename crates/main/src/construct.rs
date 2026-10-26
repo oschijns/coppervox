@@ -8,7 +8,7 @@ use coppervox_runner::{
         converter::{Processing, RenderingData},
         processor::ProcessingData,
     },
-    runner::{Runner, RunnerData},
+    runner::{InputBinding, KeyboardState, Runner, RunnerData},
     shader_const::{GpuColorGradient, GpuMat4x4},
 };
 use kiss3d::{
@@ -16,7 +16,7 @@ use kiss3d::{
     procedural::{IndexBuffer, RenderMesh},
     resource::Material3d,
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, num::NonZeroU32, rc::Rc};
 
 /// Identify matrix to prepare the projection matrix for the camera
 const IDENTITY_MATRIX: GpuMat4x4 = [
@@ -42,6 +42,9 @@ pub struct Construct {
 
     /// Camera position relative to the centered model
     pub camera_offset: Vec3,
+
+    /// Keys currently held down by the user
+    pub pressed_keys: KeyboardState,
 }
 
 impl Construct {
@@ -49,6 +52,8 @@ impl Construct {
     pub fn new(cli: &Cli) -> Result<Self, anyhow::Error> {
         // Load the configuration provided
         let config = load_config(&cli.config)?;
+        let tick_rate = NonZeroU32::new(config.tick_rate)
+            .ok_or_else(|| anyhow::anyhow!("Simulation tick_rate must be greater than zero"))?;
         let mut vox_ident = VoxelIdentifier::make(config);
 
         // Load the voxel data
@@ -58,13 +63,35 @@ impl Construct {
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = ProcessingData::make(&model, &vox_ident)?;
         let process = Processing::make(ordered.io_order(), ordered.connect());
+        let input_bindings = ordered
+            .io_order()
+            .components()
+            .iter()
+            .enumerate()
+            .filter_map(|(component, (_, comp_type))| match comp_type {
+                coppervox_runner::config::component::CompType::InputKey { key, value } => {
+                    Some(InputBinding {
+                        component,
+                        key: *key,
+                        value: *value,
+                    })
+                }
+                _ => None,
+            })
+            .collect::<Box<[_]>>();
+        let pressed_keys: KeyboardState = Rc::new(RefCell::new(HashSet::new()));
 
         let color_presets = vox_ident
             .definitions
             .iter()
             .map(|(_, g)| GpuColorGradient::from(*g))
             .collect::<Box<[_]>>();
-        let render = RenderingData::make(ordered.quad_data(), ordered.meshes(), color_presets);
+        let render = RenderingData::make(
+            ordered.quad_data(),
+            ordered.meshes(),
+            ordered.io_order(),
+            color_presets,
+        );
         if render.instances_data.is_empty() {
             anyhow::bail!("The imported model contains no renderable components");
         }
@@ -108,11 +135,16 @@ impl Construct {
         Ok(Self {
             render_mesh: render.render_mesh,
             preview_mesh,
-            material: Rc::new(RefCell::new(
-                Box::new(Runner::new(data)) as Box<dyn Material3d + 'static>
-            )),
+            material: Rc::new(RefCell::new(Box::new(Runner::with_inputs(
+                data,
+                tick_rate,
+                input_bindings,
+                Rc::clone(&pressed_keys),
+            ))
+                as Box<dyn Material3d + 'static>)),
             center,
             camera_offset,
+            pressed_keys,
         })
     }
 }

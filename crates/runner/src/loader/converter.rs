@@ -53,6 +53,7 @@ impl RenderingData {
     pub fn make(
         quad_data: &UniQuadDataReader,
         order: &MeshOrdering,
+        io_order: &IoOrdering,
         color_presets: List<GpuColorGradient>,
     ) -> Self {
         // Allocate buffers
@@ -66,8 +67,11 @@ impl RenderingData {
         let mut indices = Vec::<[[u32; 3]; 3]>::new();
 
         // Convert the meshes
-        for (index, (_, mesh, color_index, bbox)) in order.iter_components().enumerate() {
-            mesh.push_to(index, &mut indices, &mut extra);
+        for (index, (label, mesh, color_index, bbox)) in order.iter_components().enumerate() {
+            let io_index = io_order
+                .index_of(label)
+                .expect("every rendered component has a processing index");
+            mesh.push_to(index, io_index, &mut indices, &mut extra);
 
             // Create instance data for the component
             let [x, y, z] = bbox.start;
