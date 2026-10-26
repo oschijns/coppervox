@@ -1,0 +1,31 @@
+Config(
+    tick_rate: 60,
+    mapping: (
+        voxel_ident: COLOR,
+        components: {
+            // Components
+            "#fff1e8": (type: OR  , gradient: (off: "#111111", low: "#222222", high: "#ffffff")),
+            "#FFA300": (type: NAND, gradient: (off: "#110000", low: "#220000", high: "#ffa300")),
+            "#29adff": (type: NAND, gradient: (off: "#000011", low: "#001122", high: "#29adff")),
+            "#00e436": (type: NAND, gradient: (off: "#001100", low: "#002200", high: "#00e436")),
+
+            // Inputs
+            "#FFEC27": (
+                type: INPUT_KEY(key: Q, value: 0xFFFFFFFF),
+                gradient: 0,
+            ),
+            "#FF77A8": (
+                type: INPUT_KEY(key: W, value: 0xFFFFFFFF),
+                gradient: 0,
+            ),
+            "#AB5236": (
+                type: INPUT_KEY(key: E, value: 0xFFFFFFFF),
+                gradient: 0,
+            ),
+
+        }
+    ),
+    color_gradients: [
+        (off: "#111111", low: "#222222", high: "#FFFFFF"),
+    ]
+)
