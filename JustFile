@@ -5,7 +5,6 @@ run *ARGS:
     cargo run --package coppervox_main -- {{ARGS}}
 
 
-# Run the 
+# Run the
 run-adder:
-    cargo run --package coppervox_main -- --model assets/adder2.gox --config assets/adder2.ron
-
+    cargo run --package coppervox_main -- --model assets/adder3.aseprite --config assets/adder3.ron

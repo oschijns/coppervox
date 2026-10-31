@@ -14,6 +14,11 @@ pub fn import_model(
     if let Some(ext) = path.extension() {
         let ext = ext.to_string_lossy().to_ascii_lowercase();
 
+        if matches!(ext.as_str(), "ase" | "aseprite") {
+            return crate::aseprite::import_aseprite(path, vox_ident, chunk_dim)
+                .map_err(ImportError::Aseprite);
+        }
+
         let format = ident_file_format(&ext)?;
 
         let vox = load_with_ext(&DependenciesImpl, format, path)?;
@@ -228,6 +233,9 @@ pub enum ImportError {
 
     #[error("Color space: {0}")]
     ColorSpace(#[from] coppervox_common::color_space::LockError),
+
+    #[error("Aseprite: {0}")]
+    Aseprite(#[from] crate::aseprite::AsepriteImportError),
 }
 
 #[cfg(test)]
