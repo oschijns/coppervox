@@ -6,7 +6,7 @@ members = [
     "crates/importer",
     "crates/analyzer",
     "crates/runner",
-    "crates/main",
+    "crates/app",
 ]
 
 [workspace.package]
