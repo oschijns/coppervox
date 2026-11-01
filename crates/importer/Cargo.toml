@@ -30,6 +30,7 @@ glam = "0.33"
 
 
 # Voxel file formats
+strum = { version = "0.28", features = ["derive"] }
 
 # Handle multiple voxel formats
 voxconv = "0.2"

@@ -1,4 +1,4 @@
-pub use coppervox_importer::import::import_model;
+pub use coppervox_importer::import_model;
 use coppervox_runner::config::mapping::Config;
 use std::{fs, io, path::Path};
 

@@ -1,3 +1,4 @@
+use crate::ImportError;
 use coppervox_common::{EMPTY_VOXEL, Model, color_space::ALPHA_THRESHOLD, rgb::RGB8};
 use coppervox_config::identify::VoxelIdentifier;
 use goxl_voxcore::GoxlExt;
@@ -202,45 +203,10 @@ fn ident_file_format(ext: &str) -> Result<ReadFormat, ImportError> {
     }
 }
 
-/// Error encountered when importing voxel files
-#[derive(Debug, thiserror::Error)]
-pub enum ImportError {
-    /// No file extension on the file, could not deduce file type
-    #[error("Missing extension in the model file")]
-    NoFileExt,
-
-    /// Unsupported file type
-    #[error("Unsupported file type: \"{0}\"")]
-    UnsupportedFile(String),
-
-    /// Invalid or inconsistent scene graph in the voxel file
-    #[error("Invalid voxel scene graph")]
-    InvalidScene,
-
-    /// The configuration identifies voxels by color, but the file has no base colors
-    #[error("The voxel file does not provide colors required by the configuration")]
-    MissingVoxelColors,
-
-    /// A scene transform produced a non-finite or out-of-range voxel position
-    #[error("Invalid voxel position after applying scene transforms")]
-    InvalidPosition,
-
-    #[error("Voxconv: {0}")]
-    VoxConv(#[from] voxconv::Error),
-
-    #[error("Voxcore: {0}")]
-    VoxCore(#[from] voxcore::Error),
-
-    #[error("Color space: {0}")]
-    ColorSpace(#[from] coppervox_common::color_space::LockError),
-
-    #[error("Aseprite: {0}")]
-    Aseprite(#[from] crate::aseprite::AsepriteImportError),
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{ImportError, goxl_placement_offset, voxel_coordinate};
+    use super::*;
+    use crate::ImportError;
 
     #[test]
     fn maps_goxl_z_up_placements_to_voxcore_y_up_axes() {
