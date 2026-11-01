@@ -119,7 +119,7 @@ mod tests {
 
         assert_eq!(
             connectivity.graph.get_edge_weight(source_node, target_node),
-            None
+            Some(&3)
         );
     }
 

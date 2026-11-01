@@ -5,6 +5,11 @@ run *ARGS:
     cargo run --package coppervox_main -- {{ARGS}}
 
 
-# Run the
+# Run bit adder example
 run-adder:
     cargo run --package coppervox_main -- --model assets/adder3.aseprite --config assets/adder3.ron
+
+
+# Run Goxel circuit
+run-goxel:
+    cargo run --package coppervox_main -- --model assets/adder.gox --config assets/adder.ron

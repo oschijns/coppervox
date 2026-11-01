@@ -1,5 +1,5 @@
 // Method for loading a common voxel file format and convert it into a model
-//pub mod voxel;
+pub mod voxel;
 
 /// Load Aseprite as voxel files
 pub mod aseprite;
@@ -9,11 +9,13 @@ pub mod gimp;
 
 // re-export crates
 pub use coppervox_common as common;
+use voxconv::{DependenciesImpl, ext::load_with_ext};
 use xcf::Xcf;
 
 use crate::{
     aseprite::{AsepriteImportError, convert_aseprite},
     gimp::convert_gimp,
+    voxel::convert_voxel,
 };
 use aseprite_loader::loader::AsepriteFile;
 use coppervox_common::Model;
@@ -34,17 +36,19 @@ pub fn import_model(
             return Err(ImportError::UnsupportedFile(ext.to_string()));
         };
 
-        // Allocate a model to fill with voxels
-        let mut model = Model::new(chunk_dim);
-
         // For now, we only support identifying voxels by color
         let Some(color_space) = &vox_ident.color_space else {
             return Err(ImportError::MissingColorSpace);
         };
 
+        // Allocate a model to fill with voxels
+        let mut model = Model::new(chunk_dim);
+
         // The file is either a common voxel file format to read with voxconv
         // or it is a picture file format with multiple layers.
         if let Some(format) = format.to_voxel_format() {
+            let file = load_with_ext(&DependenciesImpl, format, path)?;
+            convert_voxel(file, color_space, &mut model)?;
         } else {
             match format {
                 FileFormat::Xcf => {
@@ -153,6 +157,10 @@ pub enum ImportError {
     /// A scene transform produced a non-finite or out-of-range voxel position
     #[error("Invalid voxel position after applying scene transforms")]
     InvalidPosition,
+
+    /// A scene transform cannot be represented on the integer voxel grid
+    #[error("Voxel scene transform is not integer-grid aligned")]
+    InvalidTransform,
 
     #[error("Voxconv: {0}")]
     VoxConv(#[from] voxconv::Error),

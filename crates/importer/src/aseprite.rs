@@ -63,18 +63,6 @@ pub enum AsepriteImportError {
     #[error("Could not decode Aseprite image: {0}")]
     Image(#[from] LoadImageError),
 
-    /// The sprite does not contain any frames.
-    #[error("The Aseprite sprite contains no frames")]
-    NoFrames,
-
-    /// This importer requires a color-based voxel mapping.
-    #[error("Aseprite import requires a color-based voxel mapping")]
-    ColorMappingRequired,
-
-    /// A cel refers to a layer that is not present in the sprite.
-    #[error("Invalid layer index in Aseprite file")]
-    InvalidLayerIndex,
-
     /// A pixel color could not be mapped to a voxel index.
     #[error("Color space: {0}")]
     ColorSpace(#[from] coppervox_common::color_space::LockError),
