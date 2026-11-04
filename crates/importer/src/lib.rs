@@ -58,8 +58,7 @@ pub fn import_model(
                 FileFormat::Aseprite => {
                     // load the aseprite file
                     let data = fs::read(path)?;
-                    let file =
-                        AsepriteFile::load(&data).map_err(|err| AsepriteImportError::Load(err))?;
+                    let file = AsepriteFile::load(&data).map_err(AsepriteImportError::Load)?;
 
                     // Read data from the aseprite file
                     convert_aseprite(&file, color_space, &mut model)?;

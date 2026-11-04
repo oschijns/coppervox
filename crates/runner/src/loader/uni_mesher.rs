@@ -45,6 +45,13 @@ pub struct MeshIndices {
     pub mesh_index: usize,
 }
 
+impl Default for UniQuadDataReader {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UniQuadDataReader {
     /// Create a quad reader to generate meshes
     #[inline]

@@ -6,7 +6,7 @@ use coppervox_common::{
 use xcf::Xcf;
 
 /// Read an Aseprite file and convert its visible frames into voxel slices.
-pub fn convert_gimp<'a>(
+pub fn convert_gimp(
     file: &Xcf,
     color_space: &ColorSpace,
     model: &mut Model,

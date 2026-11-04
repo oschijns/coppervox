@@ -20,8 +20,7 @@ pub fn convert_aseprite<'a>(
     let width = width as usize;
     let height = height as usize;
     let alloc = width * height * PIXEL;
-    let mut work_buffer = Vec::with_capacity(alloc);
-    work_buffer.resize(alloc, 0u8);
+    let mut work_buffer = vec![0; alloc];
 
     for (frame_index, _) in file.frames().iter().enumerate() {
         file.render_frame(frame_index, &mut work_buffer, &LAYER)?;

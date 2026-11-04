@@ -4,7 +4,7 @@ use crate::{
 };
 use coppervox_common::Voxel;
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::PathBuf};
 
 /*
  * Mapping files ared defined using various encoding schemes:
@@ -13,6 +13,8 @@ use std::collections::BTreeMap;
  * method. An optional color gradient list. And each component has either a
  * gradient index of the gradient definition itself.
  */
+
+// TODO: specify path to voxel model in manifest directly
 
 /// Configuration loaded from a text file such as TOML
 #[derive(Debug, Deserialize)]
@@ -27,6 +29,9 @@ pub struct Config {
     /// its own gradient definition, this list is not necessary.
     #[serde(default)]
     pub color_gradients: Vec<ColorGradient>,
+
+    /// WASM module (if any)
+    pub wasm_module: Option<WasmModule>,
 }
 
 /// Configuration loaded from a text file such as TOML
@@ -60,6 +65,47 @@ pub enum Mapping {
 
     /// Identify voxels by color
     Color(BTreeMap<HexColor, Component>),
+}
+
+/// Define binding for WASM module
+#[derive(Debug, Clone, Deserialize)]
+pub struct WasmModule {
+    /// Relative path to the WASM module
+    pub path: PathBuf,
+
+    /// Input buffer for the WASM module
+    pub input: Option<WasmBuffer>,
+
+    /// Output buffer for the WASM module
+    pub output: Option<WasmBuffer>,
+
+    /// Function to initialize the module
+    #[serde(default = "default_init")]
+    pub init: String,
+
+    /// Function to call every tick
+    #[serde(default = "default_tick")]
+    pub tick: String,
+}
+
+#[inline]
+fn default_init() -> String {
+    "init".to_string()
+}
+
+#[inline]
+fn default_tick() -> String {
+    "tick".to_string()
+}
+
+/// Define start address and size of WASM IO buffer
+#[derive(Debug, Clone, Deserialize)]
+pub struct WasmBuffer {
+    /// Start address of the buffer in the WASM module
+    pub address: usize,
+
+    /// Size of the buffer in the WASM module
+    pub size: usize,
 }
 
 impl Config {

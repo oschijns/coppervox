@@ -116,6 +116,7 @@ mod tests {
             tick_rate: 10,
             mapping: Mapping::Color(BTreeMap::from([(HexColor(color), component)])),
             color_gradients: Vec::new(),
+            wasm_module: None,
         };
 
         let ident = VoxelIdentifier::make(config);

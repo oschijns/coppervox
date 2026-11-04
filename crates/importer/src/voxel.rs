@@ -159,9 +159,8 @@ impl IntTransform {
         }
 
         let mut linear = [IVec3::ZERO; 3];
-        for row in 0..3 {
-            let left = self.linear[row];
-            linear[row] = IVec3::new(
+        for (out, &left) in linear.iter_mut().zip(self.linear.iter()) {
+            *out = IVec3::new(
                 checked_dot(left, column_x(&child.linear))?,
                 checked_dot(left, column_y(&child.linear))?,
                 checked_dot(left, column_z(&child.linear))?,

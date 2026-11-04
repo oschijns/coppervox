@@ -54,11 +54,11 @@ impl Construct {
         let config = load_config(&cli.config)?;
         let tick_rate = NonZeroU32::new(config.tick_rate)
             .ok_or_else(|| anyhow::anyhow!("Simulation tick_rate must be greater than zero"))?;
-        let mut vox_ident = VoxelIdentifier::make(config);
+        let vox_ident = VoxelIdentifier::make(config);
 
         // Load the voxel data
         const CHUNK_DIM: [usize; 3] = [12, 12, 12];
-        let model = import_model(&cli.model, &mut vox_ident, CHUNK_DIM)?;
+        let model = import_model(&cli.model, &vox_ident, CHUNK_DIM)?;
 
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = ProcessingData::make(&model, &vox_ident)?;

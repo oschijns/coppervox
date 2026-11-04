@@ -7,6 +7,9 @@ pub mod processor;
 /// Convert the data into types supported by the GPU
 pub mod converter;
 
+/// Allow loading a WASM module to be run inbetween ticks
+pub mod wasm_module;
+
 use crate::shader_const::GpuOp;
 use coppervox_analyzer::Label;
 use coppervox_common::Voxel;

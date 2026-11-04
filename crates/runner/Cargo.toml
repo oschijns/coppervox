@@ -33,3 +33,6 @@ wgpu.workspace = true
 
 # Pass data to WGSL
 bytemuck = { version = "1", features = ["derive"] }
+
+# Allow using WASM modules
+wasmtime = "50.0"

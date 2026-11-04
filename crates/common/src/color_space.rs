@@ -138,11 +138,7 @@ impl ColorSpace {
         };
 
         // Check if an index has already be identified for this color
-        if let Some(index) = write.lookup.get(&hash) {
-            Some(*index)
-        } else {
-            None
-        }
+        write.lookup.get(&hash).copied()
     }
 }
 
