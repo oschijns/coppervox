@@ -42,4 +42,4 @@ ty-math = "0.3"
 aseprite-loader = "0.4"
 
 # GIMP
-xcf = "0.4"
+xcf-rs = "0.5"

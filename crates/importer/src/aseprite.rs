@@ -22,6 +22,11 @@ pub fn convert_aseprite<'a>(
     let alloc = width * height * PIXEL;
     let mut work_buffer = vec![0; alloc];
 
+    // evaluate the center of the model
+    let cx = width as Index / 2;
+    let cy = height as Index / 2;
+    let cz = file.frames().len() as Index / 2;
+
     for (frame_index, _) in file.frames().iter().enumerate() {
         file.render_frame(frame_index, &mut work_buffer, &LAYER)?;
 
@@ -42,7 +47,7 @@ pub fn convert_aseprite<'a>(
                 if voxel == EMPTY_VOXEL {
                     continue;
                 }
-                let index = [x as Index, frame_index as Index, y as Index];
+                let index = [x as Index - cx, frame_index as Index - cz, y as Index - cy];
                 model[index] = voxel;
             }
         }

@@ -10,7 +10,7 @@ pub mod gimp;
 // re-export crates
 pub use coppervox_common as common;
 use voxconv::{DependenciesImpl, ext::load_with_ext};
-use xcf::Xcf;
+use xcf_rs::data::xcf::Xcf;
 
 use crate::{
     aseprite::{AsepriteImportError, convert_aseprite},
@@ -171,7 +171,10 @@ pub enum ImportError {
     ColorSpace(#[from] coppervox_common::color_space::LockError),
 
     #[error("GIMP: {0}")]
-    Xcf(#[from] xcf::Error),
+    Xcf(#[from] xcf_rs::data::error::Error),
+
+    #[error("GIMP import: {0}")]
+    Gimp(#[from] crate::gimp::GimpImportError),
 
     #[error("Aseprite: {0}")]
     Aseprite(#[from] crate::aseprite::AsepriteImportError),
