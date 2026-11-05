@@ -74,10 +74,10 @@ pub struct WasmModule {
     pub path: PathBuf,
 
     /// Input buffer for the WASM module
-    pub input: Option<WasmBuffer>,
+    pub input: WasmBuffer,
 
     /// Output buffer for the WASM module
-    pub output: Option<WasmBuffer>,
+    pub output: WasmBuffer,
 
     /// Function to initialize the module
     #[serde(default = "default_init")]

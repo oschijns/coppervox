@@ -1,19 +1,29 @@
 use coppervox_config::mapping::{WasmBuffer, WasmModule as WasmModuleConfig};
 use std::path::Path;
-use wasmtime::{Engine, Instance, Memory, Module, Store, TypedFunc};
+use wasmtime::{Engine, Error, Instance, Memory, MemoryAccessError, Module, Store, TypedFunc};
 
 /// An instantiated WASM module bound to the simulator.
-///
-/// The module must export `init` and `tick` functions with the signature
-/// `() -> ()`. When either buffer is configured, it must also export linear
-/// memory as `memory`; buffer addresses are byte offsets into that memory.
 pub struct WasmModule {
+    /// WASM engine
     _engine: Engine,
+
+    /// WASM data
     store: Store<()>,
+
+    /// WASM module `init` function
+    init: TypedFunc<(), ()>,
+
+    /// WASM module `tick` function
     tick: TypedFunc<(), ()>,
-    memory: Option<Memory>,
-    input: Option<WasmBuffer>,
-    output: Option<WasmBuffer>,
+
+    /// WASM module dedicated memory
+    memory: Memory,
+
+    /// Input buffer binding
+    input: WasmBuffer,
+
+    /// Ouput buffer binding
+    output: WasmBuffer,
 }
 
 /// An error encountered while loading or using a WASM module.
@@ -64,25 +74,16 @@ impl WasmModule {
         let init = instance.get_typed_func::<(), ()>(&mut store, &config.init)?;
         let tick = instance.get_typed_func::<(), ()>(&mut store, &config.tick)?;
 
-        let memory = instance.get_memory(&mut store, "memory");
-        if (config.input.is_some() || config.output.is_some()) && memory.is_none() {
+        let Some(memory) = instance.get_memory(&mut store, "memory") else {
             return Err(WasmModuleError::MissingMemory);
-        }
-
-        if let Some(memory) = memory {
-            if let Some(input) = &config.input {
-                Self::validate_buffer(&memory, &store, "input", input)?;
-            }
-            if let Some(output) = &config.output {
-                Self::validate_buffer(&memory, &store, "output", output)?;
-            }
-        }
-
-        init.call(&mut store, ())?;
+        };
+        Self::validate_buffer(&memory, &store, "input", &config.input)?;
+        Self::validate_buffer(&memory, &store, "output", &config.output)?;
 
         Ok(Self {
             _engine: engine,
             store,
+            init,
             tick,
             memory,
             input: config.input.clone(),
@@ -103,41 +104,44 @@ impl WasmModule {
         Self::load(&resolved_config)
     }
 
-    /// Call the module's tick function once.
-    pub fn tick(&mut self) -> Result<(), WasmModuleError> {
-        self.tick.call(&mut self.store, ())?;
-        Ok(())
+    /// Call the module's `init` function once.
+    #[inline]
+    pub fn init(&mut self) -> Result<(), Error> {
+        self.init.call(&mut self.store, ())
+    }
+
+    /// Call the module's `tick` function once.
+    #[inline]
+    pub fn tick(&mut self) -> Result<(), Error> {
+        self.tick.call(&mut self.store, ())
     }
 
     /// Copy bytes into the configured input buffer.
-    pub fn write_input(&mut self, data: &[u8]) -> Result<(), WasmModuleError> {
-        let input = self
-            .input
-            .as_ref()
-            .ok_or(WasmModuleError::BufferNotConfigured("input"))?;
-        if data.len() != input.size {
-            return Err(WasmModuleError::InputSizeMismatch {
-                expected: input.size,
-                actual: data.len(),
-            });
-        }
-        let memory = self.memory.as_ref().ok_or(WasmModuleError::MissingMemory)?;
-        memory.write(&mut self.store, input.address, data)?;
-        Ok(())
+    #[inline]
+    pub fn write_input(&mut self, data: &[u8]) -> Result<(), MemoryAccessError> {
+        self.memory.write(&mut self.store, self.input.address, data)
     }
 
-    /// Copy bytes from the configured output buffer.
-    pub fn read_output(&self) -> Result<Vec<u8>, WasmModuleError> {
-        let output = self
-            .output
-            .as_ref()
-            .ok_or(WasmModuleError::BufferNotConfigured("output"))?;
-        let memory = self.memory.as_ref().ok_or(WasmModuleError::MissingMemory)?;
-        let mut data = vec![0; output.size];
-        memory.read(&self.store, output.address, &mut data)?;
-        Ok(data)
+    /// Copy bytes from the configured output buffer into the provided slice.
+    /// Said slice must have the required size.
+    #[inline]
+    pub fn read_output(&self, data: &mut [u8]) -> Result<(), MemoryAccessError> {
+        self.memory.read(&self.store, self.output.address, data)
     }
 
+    /// Get the size of the input buffer
+    #[inline]
+    pub fn input_buffer_size(&self) -> usize {
+        self.input.size
+    }
+
+    /// Get the size of the output buffer
+    #[inline]
+    pub fn output_buffer_size(&self) -> usize {
+        self.output.size
+    }
+
+    /// Check the buffer targeted is within the boundaries of the WASM module
     fn validate_buffer(
         memory: &Memory,
         store: &Store<()>,
