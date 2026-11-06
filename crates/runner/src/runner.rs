@@ -10,6 +10,7 @@ mod bind_render;
 /// Execute the runner
 mod exec;
 
+use crate::loader::wasm_module::WasmModule;
 use crate::shader_const::{GpuColorGradient, GpuInstanceData, GpuMat4x4};
 use coppervox_common::List;
 use kiss3d::{event::Key, resource::PipelineCache};
@@ -53,6 +54,9 @@ pub struct Runner {
     /// Component indices and key/value pairs controlled by the keyboard
     input_bindings: List<InputBinding>,
 
+    /// Optional runner for WASM module
+    wasm: Option<WasmRunner>,
+
     /// Keys currently held down
     pressed_keys: KeyboardState,
 
@@ -72,6 +76,24 @@ pub struct Runner {
 /// Shared set of keys currently held down by the window.
 pub type KeyboardState = Rc<RefCell<HashSet<Key>>>;
 
+/// Data relative to WASM module
+pub struct WasmRunner {
+    /// WASM module called between simulation ticks.
+    module: WasmModule,
+
+    /// Whether the module's init function has completed.
+    initialized: bool,
+
+    /// Whether a runtime error has stopped simulation.
+    failed: bool,
+
+    /// WASM module output values supplied to component inputs.
+    inputs: List<WasmBinding>,
+
+    /// Component outputs sent to the WASM module's input buffer.
+    outputs: List<WasmBinding>,
+}
+
 /// A keyboard-controlled circuit input.
 #[derive(Debug, Clone, Copy)]
 pub struct InputBinding {
@@ -83,6 +105,26 @@ pub struct InputBinding {
 
     /// Value produced while the key is held
     pub value: u32,
+}
+
+/// A slot in the WASM output buffer supplied to a GPU component input or output.
+#[derive(Debug, Clone, Copy)]
+pub struct WasmBinding {
+    /// Component index in the processing buffers.
+    pub component: usize,
+
+    /// Slot in the WASM output buffer.
+    pub slot: usize,
+}
+
+impl WasmBinding {
+    #[inline]
+    pub fn new(component: usize, slot: u8) -> Self {
+        Self {
+            component,
+            slot: slot as usize,
+        }
+    }
 }
 
 impl Runner {
@@ -108,12 +150,34 @@ impl Runner {
         Self {
             data,
             input_bindings,
+            wasm: None,
             pressed_keys,
             current_buffer: 0,
             tick_interval,
             tick_accumulator: tick_interval,
             last_tick: Instant::now(),
         }
+    }
+
+    /// Create a runner with a WASM module and its component bindings.
+    pub fn with_wasm(
+        data: RunnerData,
+        tick_rate: NonZeroU32,
+        input_bindings: List<InputBinding>,
+        pressed_keys: KeyboardState,
+        module: WasmModule,
+        outputs: List<WasmBinding>,
+        inputs: List<WasmBinding>,
+    ) -> Self {
+        let mut runner = Self::with_inputs(data, tick_rate, input_bindings, pressed_keys);
+        runner.wasm = Some(WasmRunner {
+            module,
+            initialized: false,
+            failed: false,
+            inputs,
+            outputs,
+        });
+        runner
     }
 }
 
@@ -169,6 +233,9 @@ pub struct RunnerGpuData {
 
     /// Pipeline used to run one simulation tick
     compute_pipeline: ComputePipeline,
+
+    /// Staging buffer for copying selected GPU outputs to the CPU.
+    wasm_readback: Option<Buffer>,
 
     /// Bind groups for the render pass
     render: RenderBinding,

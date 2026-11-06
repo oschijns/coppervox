@@ -79,11 +79,13 @@ pub struct WasmModule {
     /// Output buffer for the WASM module
     pub output: WasmBuffer,
 
-    /// Function to initialize the module
+    /// Function to initialize the module. It must have signature `() -> u32`,
+    /// where zero means success and any nonzero value is an error code.
     #[serde(default = "default_init")]
     pub init: String,
 
-    /// Function to call every tick
+    /// Function to call every tick. It must have signature `() -> u32`,
+    /// where zero means success and any nonzero value is an error code.
     #[serde(default = "default_tick")]
     pub tick: String,
 }
@@ -98,13 +100,13 @@ fn default_tick() -> String {
     "tick".to_string()
 }
 
-/// Define start address and size of WASM IO buffer
+/// Define the start address and byte size of a WASM IO buffer.
 #[derive(Debug, Clone, Deserialize)]
 pub struct WasmBuffer {
     /// Start address of the buffer in the WASM module
     pub address: usize,
 
-    /// Size of the buffer in the WASM module
+    /// Size of the buffer in bytes. WASM component slots each occupy one u32.
     pub size: usize,
 }
 

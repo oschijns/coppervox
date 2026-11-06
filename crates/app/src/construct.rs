@@ -7,8 +7,9 @@ use coppervox_runner::{
     loader::{
         converter::{Processing, RenderingData},
         processor::ProcessingData,
+        wasm_module::WasmModule,
     },
-    runner::{InputBinding, KeyboardState, Runner, RunnerData},
+    runner::{InputBinding, KeyboardState, Runner, RunnerData, WasmBinding},
     shader_const::{GpuColorGradient, GpuMat4x4},
 };
 use kiss3d::{
@@ -54,6 +55,16 @@ impl Construct {
         let config = load_config(&cli.config)?;
         let tick_rate = NonZeroU32::new(config.tick_rate)
             .ok_or_else(|| anyhow::anyhow!("Simulation tick_rate must be greater than zero"))?;
+
+        // Check if we should load a WASM module too
+        let wasm_module = if let Some(wasm) = &config.wasm_module {
+            let module = WasmModule::load(wasm)?;
+            Some(module)
+        } else {
+            None
+        };
+
+        // Generate an identifier for voxels
         let vox_ident = VoxelIdentifier::make(config);
 
         // Load the voxel data
@@ -63,6 +74,8 @@ impl Construct {
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = ProcessingData::make(&model, &vox_ident)?;
         let process = Processing::make(ordered.io_order(), ordered.connect());
+        let mut wasm_inputs = Vec::new();
+        let mut wasm_outputs = Vec::new();
         let input_bindings = ordered
             .io_order()
             .components()
@@ -76,9 +89,31 @@ impl Construct {
                         value: *value,
                     })
                 }
+                coppervox_runner::config::component::CompType::WasmInput(slot) => {
+                    wasm_inputs.push(WasmBinding::new(component, *slot));
+                    None
+                }
+                coppervox_runner::config::component::CompType::WasmOutput(slot) => {
+                    wasm_outputs.push(WasmBinding::new(component, *slot));
+                    None
+                }
                 _ => None,
             })
             .collect::<Box<[_]>>();
+        match &wasm_module {
+            Some(module) => {
+                for binding in &wasm_outputs {
+                    module.validate_input_slot(binding.slot)?;
+                }
+                for binding in &wasm_inputs {
+                    module.validate_output_slot(binding.slot)?;
+                }
+            }
+            None if !wasm_inputs.is_empty() || !wasm_outputs.is_empty() => {
+                anyhow::bail!("WASM components are configured but no WASM module is loaded");
+            }
+            None => {}
+        }
         let pressed_keys: KeyboardState = Rc::new(RefCell::new(HashSet::new()));
 
         let color_presets = vox_ident
@@ -132,16 +167,25 @@ impl Construct {
             process.initial_values.into_boxed_slice(),
         );
 
-        Ok(Self {
-            render_mesh: render.render_mesh,
-            preview_mesh,
-            material: Rc::new(RefCell::new(Box::new(Runner::with_inputs(
+        let runner = match wasm_module {
+            Some(module) => Runner::with_wasm(
                 data,
                 tick_rate,
                 input_bindings,
                 Rc::clone(&pressed_keys),
-            ))
-                as Box<dyn Material3d + 'static>)),
+                module,
+                wasm_outputs.into_boxed_slice(),
+                wasm_inputs.into_boxed_slice(),
+            ),
+            None => Runner::with_inputs(data, tick_rate, input_bindings, Rc::clone(&pressed_keys)),
+        };
+
+        Ok(Self {
+            render_mesh: render.render_mesh,
+            preview_mesh,
+            material: Rc::new(RefCell::new(
+                Box::new(runner) as Box<dyn Material3d + 'static>
+            )),
             center,
             camera_offset,
             pressed_keys,

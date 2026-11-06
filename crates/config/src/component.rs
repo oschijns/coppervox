@@ -46,8 +46,11 @@ pub enum CompType {
     /// Map a list of keys to a mask
     InputMask(Box<[Option<Key>; VALUE_SIZE]>),
 
-    /// The component output a value
-    Output(u8),
+    /// The component receives a value from a WASM module
+    WasmInput(u8),
+
+    /// The component sends a value to a WASM module
+    WasmOutput(u8),
 }
 
 impl Default for CompType {
@@ -87,8 +90,10 @@ impl CompType {
 
     pub fn interface(&self) -> Interface {
         match self {
-            Self::InputKey { key: _, value: _ } | Self::InputMask(_) => Interface::Input,
-            Self::Output(_) => Interface::Output,
+            Self::InputKey { key: _, value: _ } | Self::InputMask(_) | Self::WasmInput(_) => {
+                Interface::Input
+            }
+            Self::WasmOutput(_) => Interface::Output,
             _ => Interface::None,
         }
     }
