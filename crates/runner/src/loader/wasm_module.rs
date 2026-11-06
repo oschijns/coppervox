@@ -1,6 +1,7 @@
-use coppervox_config::manifest::{WasmBuffer, WasmModule as WasmModuleConfig};
+use coppervox_bind::{Bind, decode_bind};
+use coppervox_config::manifest::WasmModule as WasmModuleConfig;
 use std::path::Path;
-use wasmtime::{Engine, Instance, Memory, Module, Store, TypedFunc};
+use wasmtime::{AsContextMut, Engine, Instance, Memory, Module, Store, TypedFunc};
 
 /// Size of a cell in the buffer in bytes
 const CELL_SIZE: usize = size_of::<u32>();
@@ -57,10 +58,10 @@ pub enum WasmModuleError {
 
     /// A configured buffer does not fit in the module's linear memory.
     #[error(
-        "WASM {buffer} buffer at address {address} with size {size} exceeds memory size {memory_size}"
+        "WASM {name} buffer at address {address} with size {size} exceeds memory size {memory_size}"
     )]
     BufferOutOfBounds {
-        buffer: &'static str,
+        name: String,
         address: usize,
         size: usize,
         memory_size: usize,
@@ -79,9 +80,9 @@ pub enum WasmRunError {
     Call(#[from] wasmtime::Error),
 
     /// A configured component index does not fit in the corresponding buffer.
-    #[error("WASM {buffer} buffer has no 32-bit value at slot {slot} (size {size} bytes)")]
+    #[error("WASM {name} buffer has no 32-bit value at slot {slot} (size {size} bytes)")]
     BufferSlotOutOfBounds {
-        buffer: &'static str,
+        name: &'static str,
         slot: usize,
         size: usize,
     },
@@ -93,8 +94,8 @@ pub enum WasmRunError {
 
 impl WasmRunError {
     #[inline]
-    pub fn out_of_bounds(buffer: &'static str, slot: usize, size: usize) -> Self {
-        Self::BufferSlotOutOfBounds { buffer, slot, size }
+    pub fn out_of_bounds(name: &'static str, slot: usize, size: usize) -> Self {
+        Self::BufferSlotOutOfBounds { name, slot, size }
     }
 }
 
@@ -108,14 +109,17 @@ impl WasmModule {
         let mut store = Store::new(&engine, ());
         let instance = Instance::new(&mut store, &module, &[])?;
 
+        // Access the functions to run the WASM module
         let init = instance.get_typed_func::<(), u32>(&mut store, &config.init)?;
         let tick = instance.get_typed_func::<(), u32>(&mut store, &config.tick)?;
 
+        // Prepare memory
         let Some(memory) = instance.get_memory(&mut store, "memory") else {
             return Err(WasmModuleError::MissingMemory);
         };
-        let input = Self::validate_buffer(&memory, &store, "input", &config.input)?;
-        let output = Self::validate_buffer(&memory, &store, "output", &config.output)?;
+        let memory_size = memory.data_size(&store);
+        let buffer_i = Self::prepare_buffer(&instance, &mut store, memory_size, &config.input)?;
+        let buffer_o = Self::prepare_buffer(&instance, &mut store, memory_size, &config.output)?;
 
         Ok(Self {
             engine,
@@ -123,8 +127,34 @@ impl WasmModule {
             init,
             tick,
             memory,
-            input,
-            output,
+            input: buffer_i,
+            output: buffer_o,
+        })
+    }
+
+    /// Check the buffer targeted is within the boundaries of the WASM module
+    fn prepare_buffer(
+        instance: &Instance,
+        mut store: impl AsContextMut,
+        memory_size: usize,
+        func_name: &str,
+    ) -> Result<WasmIoBuffer, WasmModuleError> {
+        let func = instance.get_typed_func::<(), Bind>(&mut store, func_name)?;
+        let bind = func.call(&mut store, ())?;
+        let [address, size] = decode_bind(bind);
+
+        let end = address.checked_add(size);
+        if end.is_none_or(|end| end > memory_size) {
+            return Err(WasmModuleError::BufferOutOfBounds {
+                name: func_name.to_string(),
+                address,
+                size,
+                memory_size,
+            });
+        }
+        Ok(WasmIoBuffer {
+            address,
+            buffer: vec![0; size / CELL_SIZE],
         })
     }
 
@@ -209,29 +239,6 @@ impl WasmModule {
                 size * CELL_SIZE,
             ))
         }
-    }
-
-    /// Check the buffer targeted is within the boundaries of the WASM module
-    fn validate_buffer(
-        memory: &Memory,
-        store: &Store<()>,
-        name: &'static str,
-        buffer: &WasmBuffer,
-    ) -> Result<WasmIoBuffer, WasmModuleError> {
-        let memory_size = memory.data_size(store);
-        let end = buffer.address.checked_add(buffer.size);
-        if end.is_none_or(|end| end > memory_size) {
-            return Err(WasmModuleError::BufferOutOfBounds {
-                buffer: name,
-                address: buffer.address,
-                size: buffer.size,
-                memory_size,
-            });
-        }
-        Ok(WasmIoBuffer {
-            address: buffer.address,
-            buffer: vec![0; buffer.size / CELL_SIZE],
-        })
     }
 
     /// Check the return code status

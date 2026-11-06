@@ -1,30 +1,31 @@
 #![no_std]
 
+use coppervox_bind::{Bind, Buffer, bind};
 use core::panic::PanicInfo;
+use core::ptr::addr_of;
 
-/// Input buffer is 8 bytes long, containing two u32 values.
-const INPUT_ADDRESS: usize = 1024;
-
-/// Output buffer is 4 bytes long, containing one u32 value.
-const OUTPUT_ADDRESS: usize = 1032;
+static mut BUFFER_I: Buffer<2> = [0; 2];
+static mut BUFFER_O: Buffer<1> = [0; 1];
 
 #[unsafe(no_mangle)]
 pub extern "C" fn init() -> u32 {
-    unsafe {
-        core::ptr::write_volatile(OUTPUT_ADDRESS as *mut u32, 0);
-    }
     0
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn tick() -> u32 {
-    let left = unsafe { core::ptr::read_volatile(INPUT_ADDRESS as *const u32) };
-    let right = unsafe { core::ptr::read_volatile((INPUT_ADDRESS + 4) as *const u32) };
-    let sum = left.wrapping_add(right);
-    unsafe {
-        core::ptr::write_volatile(OUTPUT_ADDRESS as *mut u32, sum);
-    }
+    unsafe { BUFFER_O[0] = BUFFER_I[0] + BUFFER_I[1] };
     0
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bind_input() -> Bind {
+    bind(addr_of!(BUFFER_I))
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn bind_output() -> Bind {
+    bind(addr_of!(BUFFER_O))
 }
 
 #[panic_handler]

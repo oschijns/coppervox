@@ -7,4 +7,9 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
+[dependencies]
+
+# Get binding structs
+coppervox-bind = { path = "../../crates/bind" }
+
 [workspace]

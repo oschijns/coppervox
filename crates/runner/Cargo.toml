@@ -13,6 +13,9 @@ license.workspace = true
 # Provide explicit errors
 thiserror.workspace = true
 
+# Binding with WASM module
+coppervox-bind = { path = "../bind" }
+
 # Common data types
 coppervox-common = { path = "../common" }
 

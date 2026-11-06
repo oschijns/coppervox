@@ -80,12 +80,6 @@ pub struct WasmModule {
     /// Relative path to the WASM module
     pub path: PathBuf,
 
-    /// Input buffer for the WASM module
-    pub input: WasmBuffer,
-
-    /// Output buffer for the WASM module
-    pub output: WasmBuffer,
-
     /// Function to initialize the module. It must have signature `() -> u32`,
     /// where zero means success and any nonzero value is an error code.
     #[serde(default = "default_init")]
@@ -95,6 +89,14 @@ pub struct WasmModule {
     /// where zero means success and any nonzero value is an error code.
     #[serde(default = "default_tick")]
     pub tick: String,
+
+    /// Function providing the address and size of the input buffer
+    #[serde(default = "default_input")]
+    pub input: String,
+
+    /// Function providing the address and size if the output buffer
+    #[serde(default = "default_output")]
+    pub output: String,
 }
 
 #[inline]
@@ -107,14 +109,14 @@ fn default_tick() -> String {
     "tick".to_string()
 }
 
-/// Define the start address and byte size of a WASM IO buffer.
-#[derive(Debug, Clone, Deserialize)]
-pub struct WasmBuffer {
-    /// Start address of the buffer in the WASM module
-    pub address: usize,
+#[inline]
+fn default_input() -> String {
+    "bind_input".to_string()
+}
 
-    /// Size of the buffer in bytes. WASM component slots each occupy one u32.
-    pub size: usize,
+#[inline]
+fn default_output() -> String {
+    "bint_output".to_string()
 }
 
 impl Manifest {
