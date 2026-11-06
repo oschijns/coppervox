@@ -1,9 +1,6 @@
-use crate::{
-    Cli,
-    import::{import_model, load_config},
-};
+use crate::import::import_model;
 use coppervox_runner::{
-    config::identify::VoxelIdentifier,
+    config::{identify::VoxelIdentifier, mapping::Config},
     loader::{
         converter::{Processing, RenderingData},
         processor::ProcessingData,
@@ -50,15 +47,14 @@ pub struct Construct {
 
 impl Construct {
     /// Process the data to construct the circuit
-    pub fn new(cli: &Cli) -> Result<Self, anyhow::Error> {
+    pub fn new(config: &Config) -> Result<Self, anyhow::Error> {
         // Load the configuration provided
-        let config = load_config(&cli.config)?;
         let tick_rate = NonZeroU32::new(config.tick_rate)
             .ok_or_else(|| anyhow::anyhow!("Simulation tick_rate must be greater than zero"))?;
 
         // Check if we should load a WASM module too
         let wasm_module = if let Some(wasm) = &config.wasm_module {
-            let module = WasmModule::load(wasm)?;
+            let module = WasmModule::load(&config.path, wasm)?;
             Some(module)
         } else {
             None
@@ -69,7 +65,7 @@ impl Construct {
 
         // Load the voxel data
         const CHUNK_DIM: [usize; 3] = [12, 12, 12];
-        let model = import_model(&cli.model, &vox_ident, CHUNK_DIM)?;
+        let model = import_model(&config.model_path(), &vox_ident, CHUNK_DIM)?;
 
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = ProcessingData::make(&model, &vox_ident)?;

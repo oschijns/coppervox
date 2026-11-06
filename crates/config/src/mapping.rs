@@ -19,8 +19,15 @@ use std::{collections::BTreeMap, path::PathBuf};
 /// Configuration loaded from a text file such as TOML
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    /// Absolute path to this manifest file
+    #[serde(default)]
+    pub path: PathBuf,
+
     /// Tick rate to run the simulation
     pub tick_rate: u32,
+
+    /// Voxel model to load. This is a path relative to the manifest file.
+    pub model: PathBuf,
 
     /// Associate a voxel value with a type of component
     pub mapping: Mapping,
@@ -111,6 +118,20 @@ pub struct WasmBuffer {
 }
 
 impl Config {
+    /// Evaluate the path to the model
+    #[inline]
+    pub fn model_path(&self) -> PathBuf {
+        self.path.join(&self.model)
+    }
+
+    /// Evaluate the path to the WASM module (if any)
+    #[inline]
+    pub fn wasm_path(&self) -> Option<PathBuf> {
+        self.wasm_module
+            .as_ref()
+            .map(|wasm| self.path.join(&wasm.path))
+    }
+
     /// Return true if the configuration is valid.
     /// Each color index should map to a valid color set.
     pub fn validate(&self) -> bool {

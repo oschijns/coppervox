@@ -26,7 +26,7 @@ pub struct VoxelIdentifier {
 
 impl VoxelIdentifier {
     /// Convert the config into an exploitable voxel identifier
-    pub fn make(config: Config) -> Self {
+    pub fn make(config: &Config) -> Self {
         match &config.mapping {
             Mapping::Index(map) => {
                 // Create a buffer to store components
@@ -113,13 +113,15 @@ mod tests {
             gradient: CompGradient::Gradient(ColorGradient::default()),
         };
         let config = Config {
+            path: Default::default(),
+            model: Default::default(),
             tick_rate: 10,
             mapping: Mapping::Color(BTreeMap::from([(HexColor(color), component)])),
             color_gradients: Vec::new(),
             wasm_module: None,
         };
 
-        let ident = VoxelIdentifier::make(config);
+        let ident = VoxelIdentifier::make(&config);
 
         assert_eq!(
             ident

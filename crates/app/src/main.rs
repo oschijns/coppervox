@@ -4,7 +4,7 @@ mod import;
 /// Construct the circuit and mesh
 mod construct;
 
-use crate::construct::Construct;
+use crate::{construct::Construct, import::load_config};
 use clap::Parser;
 use kiss3d::{
     event::{Action, WindowEvent},
@@ -16,10 +16,8 @@ use std::{path::PathBuf, process::exit};
 #[derive(Debug, clap::Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    #[arg(short, long)]
-    model: PathBuf,
-
-    #[arg(short, long)]
+    /// Path to the configuration file
+    #[arg(value_name = "FILE")]
     config: PathBuf,
 
     /// Render the generated circuit mesh with a standard material instead of the Runner shader
@@ -30,9 +28,15 @@ pub struct Cli {
 #[kiss3d::main]
 async fn main() {
     let cli = Cli::parse();
+    let mut config = load_config(&cli.config).expect("Config file should exists");
+    config.path = cli
+        .config
+        .parent()
+        .expect("Config file should have a parent directory")
+        .to_path_buf();
 
     // Build the circuit first
-    let construct = match Construct::new(&cli) {
+    let construct = match Construct::new(&config) {
         Ok(construct) => construct,
         Err(error) => {
             eprintln!("Failed to load the model:\n{}", error);

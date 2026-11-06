@@ -1,5 +1,6 @@
 Config(
     tick_rate: 60,
+    model: "adder.gox",
     mapping: (
         voxel_ident: COLOR,
         components: {

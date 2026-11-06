@@ -102,9 +102,9 @@ impl WasmModule {
     /// Load and instantiate the configured module.
     ///
     /// Relative module paths are resolved from the process working directory.
-    pub fn load(config: &WasmModuleConfig) -> Result<Self, WasmModuleError> {
+    pub fn load(start_path: &Path, config: &WasmModuleConfig) -> Result<Self, WasmModuleError> {
         let engine = Engine::default();
-        let module = Module::from_file(&engine, &config.path)?;
+        let module = Module::from_file(&engine, start_path.join(&config.path))?;
         let mut store = Store::new(&engine, ());
         let instance = Instance::new(&mut store, &module, &[])?;
 
@@ -126,19 +126,6 @@ impl WasmModule {
             input,
             output,
         })
-    }
-
-    /// Load and instantiate the configured module using an explicit module path.
-    ///
-    /// This is useful when resolving the config's relative module path against
-    /// the directory containing the config file.
-    pub fn load_from_path(
-        config: &WasmModuleConfig,
-        path: impl AsRef<Path>,
-    ) -> Result<Self, WasmModuleError> {
-        let mut resolved_config = config.clone();
-        resolved_config.path = path.as_ref().to_path_buf();
-        Self::load(&resolved_config)
     }
 
     /// Call the module's `init` function once and check its status code.
