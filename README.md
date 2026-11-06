@@ -198,4 +198,14 @@ value. `INPUT_KEY` uses a key name from Kiss3D's key enum, such as `Q`, `W`, or
 `E`. `CONST` and `OUTPUT` take a positional argument, for example
 `CONST(0x00000001)` and `OUTPUT(0)`.
 
+## WASM modules
+
+The simulator can call a WASM module between simulation ticks. Modules export
+linear memory as `memory` and functions `init() -> u32` and `tick() -> u32`;
+zero indicates success. `WASM_OUTPUT(slot)` components send circuit values to
+the module's configured input buffer, while `WASM_INPUT(slot)` components
+receive values from its output buffer.
+
+A standalone adder example, including build instructions and its buffer
+configuration, is in [`examples/wasm-adder/README.md`](./examples/wasm-adder/README.md).
 

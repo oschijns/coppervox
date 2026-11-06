@@ -9,7 +9,7 @@ Config(
             "#6ea92c": (type: NAND, gradient: (off: "#000011", low: "#001122", high: "#29adff")),
             "#1651dd": (type: NAND, gradient: (off: "#001100", low: "#002200", high: "#00e436")),
 
-            // Inputs
+            // Keyboard Inputs
             "#60748a": (
                 type: INPUT_KEY(key: Q, value: 0xFFFFFFFF),
                 gradient: 0,
@@ -23,6 +23,10 @@ Config(
                 gradient: 0,
             ),
 
+            // WASM IO
+            "#ffff00": (type: WASM_INPUT (0), gradient: 0),
+            "#00ffff": (type: WASM_INPUT (1), gradient: 0),
+            "#ff00ff": (type: WASM_OUTPUT(0), gradient: 0),
         }
     ),
     color_gradients: [

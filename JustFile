@@ -13,3 +13,8 @@ run-adder:
 # Run Goxel circuit
 run-goxel:
     cargo run --package coppervox_app -- --model assets/adder.gox --config assets/adder.ron
+
+# Build the wasm adder example
+[working-directory: "examples/wasm-adder"]
+build-wasm-adder:
+    cargo build --package coppervox-wasm-adder --release --target wasm32-unknown-unknown
