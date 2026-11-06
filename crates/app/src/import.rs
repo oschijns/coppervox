@@ -1,5 +1,5 @@
 pub use coppervox_importer::import_model;
-use coppervox_runner::config::mapping::Config;
+use coppervox_runner::config::manifest::Manifest;
 use std::{fs, io, path::Path};
 
 /// Error encountered when loading the config files
@@ -27,7 +27,7 @@ pub enum ConfigError {
 }
 
 /// Read the config file
-pub fn load_config(path: &Path) -> Result<Config, ConfigError> {
+pub fn load_config(path: &Path) -> Result<Manifest, ConfigError> {
     if let Some(ext) = path.extension() {
         // Read the text file
         let content = fs::read_to_string(path)?;

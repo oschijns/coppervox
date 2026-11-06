@@ -1,4 +1,4 @@
-Config(
+Manifest(
     tick_rate: 60,
     model: "adder.gox",
     mapping: (

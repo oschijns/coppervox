@@ -16,9 +16,9 @@ use std::{path::PathBuf, process::exit};
 #[derive(Debug, clap::Parser)]
 #[command(version, about, long_about = None)]
 pub struct Cli {
-    /// Path to the configuration file
+    /// Path to the manifest file
     #[arg(value_name = "FILE")]
-    config: PathBuf,
+    manifest: PathBuf,
 
     /// Render the generated circuit mesh with a standard material instead of the Runner shader
     #[arg(long)]
@@ -28,9 +28,9 @@ pub struct Cli {
 #[kiss3d::main]
 async fn main() {
     let cli = Cli::parse();
-    let mut config = load_config(&cli.config).expect("Config file should exists");
+    let mut config = load_config(&cli.manifest).expect("Config file should exists");
     config.path = cli
-        .config
+        .manifest
         .parent()
         .expect("Config file should have a parent directory")
         .to_path_buf();

@@ -8,7 +8,7 @@ pub mod color;
 pub mod identify;
 
 /// Define mapping between voxel color and component type and color activation gradiants
-pub mod mapping;
+pub mod manifest;
 
 // re-export crates
 pub use coppervox_common as common;

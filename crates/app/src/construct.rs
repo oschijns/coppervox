@@ -1,6 +1,6 @@
 use crate::import::import_model;
 use coppervox_runner::{
-    config::{identify::VoxelIdentifier, mapping::Config},
+    config::{identify::VoxelIdentifier, manifest::Manifest},
     loader::{
         converter::{Processing, RenderingData},
         processor::ProcessingData,
@@ -47,7 +47,7 @@ pub struct Construct {
 
 impl Construct {
     /// Process the data to construct the circuit
-    pub fn new(config: &Config) -> Result<Self, anyhow::Error> {
+    pub fn new(config: &Manifest) -> Result<Self, anyhow::Error> {
         // Load the configuration provided
         let tick_rate = NonZeroU32::new(config.tick_rate)
             .ok_or_else(|| anyhow::anyhow!("Simulation tick_rate must be greater than zero"))?;

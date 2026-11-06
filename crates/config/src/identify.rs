@@ -1,7 +1,7 @@
 use crate::{
     color::ColorGradient,
     component::CompType,
-    mapping::{Config, Mapping},
+    manifest::{Manifest, Mapping},
 };
 use coppervox_common::{List, Voxel, color_space::ColorSpace};
 
@@ -26,7 +26,7 @@ pub struct VoxelIdentifier {
 
 impl VoxelIdentifier {
     /// Convert the config into an exploitable voxel identifier
-    pub fn make(config: &Config) -> Self {
+    pub fn make(config: &Manifest) -> Self {
         match &config.mapping {
             Mapping::Index(map) => {
                 // Create a buffer to store components
@@ -100,7 +100,7 @@ mod tests {
     use crate::{
         color::{ColorGradient, HexColor},
         component::CompType,
-        mapping::{CompGradient, Component, Config, Mapping},
+        manifest::{CompGradient, Component, Manifest, Mapping},
     };
     use coppervox_common::rgb::RGB8;
     use std::collections::BTreeMap;
@@ -112,7 +112,7 @@ mod tests {
             define: CompType::Or,
             gradient: CompGradient::Gradient(ColorGradient::default()),
         };
-        let config = Config {
+        let config = Manifest {
             path: Default::default(),
             model: Default::default(),
             tick_rate: 10,

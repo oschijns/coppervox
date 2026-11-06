@@ -18,7 +18,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 /// Configuration loaded from a text file such as TOML
 #[derive(Debug, Deserialize)]
-pub struct Config {
+pub struct Manifest {
     /// Absolute path to this manifest file
     #[serde(default)]
     pub path: PathBuf,
@@ -117,7 +117,7 @@ pub struct WasmBuffer {
     pub size: usize,
 }
 
-impl Config {
+impl Manifest {
     /// Evaluate the path to the model
     #[inline]
     pub fn model_path(&self) -> PathBuf {

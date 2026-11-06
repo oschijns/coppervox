@@ -1,4 +1,4 @@
-use coppervox_config::mapping::{WasmBuffer, WasmModule as WasmModuleConfig};
+use coppervox_config::manifest::{WasmBuffer, WasmModule as WasmModuleConfig};
 use std::path::Path;
 use wasmtime::{Engine, Instance, Memory, Module, Store, TypedFunc};
 
