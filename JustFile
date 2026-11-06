@@ -2,17 +2,17 @@
 
 # Run the main program
 run *ARGS:
-    cargo run --package coppervox_app --release -- {{ARGS}}
+    cargo run --package coppervox-app --release -- {{ARGS}}
 
 
 # Run bit adder example
 run-adder:
-    cargo run --package coppervox_app -- --model assets/adder3.aseprite --config assets/adder3.ron
+    cargo run --package coppervox-app -- --model assets/adder3.aseprite --config assets/adder3.ron
 
 
 # Run Goxel circuit
 run-goxel:
-    cargo run --package coppervox_app -- --model assets/adder.gox --config assets/adder.ron
+    cargo run --package coppervox-app -- --model assets/adder.gox --config assets/adder.ron
 
 # Build the wasm adder example
 [working-directory: "examples/wasm-adder"]

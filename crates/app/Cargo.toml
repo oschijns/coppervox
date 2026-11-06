@@ -1,5 +1,5 @@
 [package]
-name = "coppervox_app"
+name = "coppervox-app"
 description = "CopperVox entrypoint"
 authors.workspace = true
 homepage.workspace = true
@@ -19,16 +19,16 @@ thiserror.workspace = true
 anyhow = "1"
 
 # Common data structures
-coppervox_common = { path = "../common" }
+coppervox-common = { path = "../common" }
 
 # Import files and convert them into voxel models
-coppervox_importer = { path = "../importer" }
+coppervox-importer = { path = "../importer" }
 
 # Analyze voxel model to generate a logic circuit
-coppervox_analyzer = { path = "../analyzer" }
+coppervox-analyzer = { path = "../analyzer" }
 
 # Runner for a logic circuit
-coppervox_runner = { path = "../runner" }
+coppervox-runner = { path = "../runner" }
 
 # Render the scene using Kiss3D
 kiss3d.workspace = true

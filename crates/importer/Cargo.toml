@@ -1,5 +1,5 @@
 [package]
-name = "coppervox_importer"
+name = "coppervox-importer"
 description = "CopperVox import various file format"
 authors.workspace = true
 homepage.workspace = true
@@ -14,8 +14,8 @@ license.workspace = true
 thiserror.workspace = true
 
 # Main data types for CopperVox
-coppervox_common = { path = "../common" }
-coppervox_config = { path = "../config" }
+coppervox-common = { path = "../common" }
+coppervox-config = { path = "../config" }
 
 # Load a config containing Kiss3D data structures
 kiss3d.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "coppervox_config"
+name = "coppervox-config"
 description = "CopperVox define format of companion text files"
 authors.workspace = true
 homepage.workspace = true
@@ -14,7 +14,7 @@ license.workspace = true
 thiserror.workspace = true
 
 # Common types for coppervox modules
-coppervox_common = { path = "../common" }
+coppervox-common = { path = "../common" }
 
 # Load a config containing Kiss3D data structures
 kiss3d.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "coppervox_analyzer"
+name = "coppervox-analyzer"
 description = "CopperVox analyzer library"
 authors.workspace = true
 homepage.workspace = true
@@ -12,7 +12,7 @@ license.workspace = true
 thiserror.workspace = true
 
 # Common data structures
-coppervox_common = { path = "../common" }
+coppervox-common = { path = "../common" }
 
 # Regroup labels to identify islands
 disjoint-hash-set = "1"

@@ -1,5 +1,5 @@
 [package]
-name = "coppervox_runner"
+name = "coppervox-runner"
 description = "CopperVox runtime"
 authors.workspace = true
 homepage.workspace = true
@@ -14,13 +14,13 @@ license.workspace = true
 thiserror.workspace = true
 
 # Common data types
-coppervox_common = { path = "../common" }
+coppervox-common = { path = "../common" }
 
 # Load a configuration from a text file
-coppervox_config = { path = "../config" }
+coppervox-config = { path = "../config" }
 
 # Analyze voxel model to generate a logic circuit
-coppervox_analyzer = { path = "../analyzer" }
+coppervox-analyzer = { path = "../analyzer" }
 
 # Read config file
 serde = { version = "1.0", features = ["derive"] }

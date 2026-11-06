@@ -1,5 +1,5 @@
 [package]
-name = "coppervox_common"
+name = "coppervox-common"
 description = "CopperVox common data types"
 authors.workspace = true
 homepage.workspace = true
