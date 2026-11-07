@@ -116,7 +116,7 @@ fn default_input() -> String {
 
 #[inline]
 fn default_output() -> String {
-    "bint_output".to_string()
+    "bind_output".to_string()
 }
 
 impl Manifest {

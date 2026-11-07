@@ -1,10 +1,10 @@
 use coppervox_bind::{Bind, decode_bind};
 use coppervox_config::manifest::WasmModule as WasmModuleConfig;
-use std::path::Path;
+use std::{fmt, path::Path};
 use wasmtime::{AsContextMut, Engine, Instance, Memory, Module, Store, TypedFunc};
 
-/// Size of a cell in the buffer in bytes
-const CELL_SIZE: usize = size_of::<u32>();
+/// Size of a memory cell in the buffer in bytes
+pub const CELL_SIZE: usize = size_of::<u32>();
 
 /// An instantiated WASM module bound to the simulator.
 pub struct WasmModule {
@@ -249,6 +249,22 @@ impl WasmModule {
         } else {
             Err(WasmRunError::StatusCode { function, code })
         }
+    }
+}
+
+impl fmt::Display for WasmModule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "inputs:\n{}", self.input)?;
+        writeln!(f, "outputs:\n{}", self.output)?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for WasmIoBuffer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "address: 0x{:0>8x}", self.address)?;
+        writeln!(f, "size:    0x{:0>8x}", self.buffer.len() * CELL_SIZE)?;
+        Ok(())
     }
 }
 

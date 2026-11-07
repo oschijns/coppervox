@@ -53,6 +53,12 @@ pub struct ProcessingData {
 }
 
 impl ProcessingData {
+    /// Get the number of components
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.io_order.count()
+    }
+
     /// Get identified components
     #[inline]
     pub fn ident(&self) -> &ComponentIdentifier {

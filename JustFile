@@ -18,3 +18,7 @@ run-goxel:
 [working-directory: "examples/wasm-adder"]
 build-wasm-adder:
     cargo build --package coppervox-wasm-adder --release --target wasm32-unknown-unknown
+
+# Run the WASM adder example
+run-wasm-adder: build-wasm-adder
+    cargo run --package coppervox-app -- assets/wasm-test.ron

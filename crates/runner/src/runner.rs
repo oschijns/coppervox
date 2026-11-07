@@ -54,11 +54,11 @@ pub struct Runner {
     /// Component indices and key/value pairs controlled by the keyboard
     input_bindings: List<InputBinding>,
 
-    /// Optional runner for WASM module
-    wasm: Option<WasmRunner>,
-
     /// Keys currently held down
     pressed_keys: KeyboardState,
+
+    /// Optional runner for WASM module
+    wasm: Option<WasmRunner>,
 
     /// Index of the buffer containing the latest simulation values
     current_buffer: usize,
@@ -73,19 +73,14 @@ pub struct Runner {
     last_tick: Instant,
 }
 
-/// Shared set of keys currently held down by the window.
-pub type KeyboardState = Rc<RefCell<HashSet<Key>>>;
-
 /// Data relative to WASM module
 pub struct WasmRunner {
     /// WASM module called between simulation ticks.
     module: WasmModule,
 
-    /// Whether the module's init function has completed.
-    initialized: bool,
-
-    /// Whether a runtime error has stopped simulation.
-    failed: bool,
+    /// Whether the module's init function has completed
+    /// or whether a runtime error has stopped simulation.
+    status: WasmStatus,
 
     /// WASM module output values supplied to component inputs.
     inputs: List<WasmBinding>,
@@ -94,17 +89,18 @@ pub struct WasmRunner {
     outputs: List<WasmBinding>,
 }
 
-/// A keyboard-controlled circuit input.
-#[derive(Debug, Clone, Copy)]
-pub struct InputBinding {
-    /// Component index in the processing buffers
-    pub component: usize,
+/// Status of the WASM runner
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WasmStatus {
+    /// Simulation was not yet started
+    Uninit,
 
-    /// Key that controls this component
-    pub key: Key,
+    /// Simulation is currently running
+    Running,
 
-    /// Value produced while the key is held
-    pub value: u32,
+    /// Simulation failed
+    Failure,
 }
 
 /// A slot in the WASM output buffer supplied to a GPU component input or output.
@@ -127,57 +123,62 @@ impl WasmBinding {
     }
 }
 
-impl Runner {
-    /// Create a runner from pre-computed circuit data
-    pub fn new(data: RunnerData) -> Self {
-        Self::with_inputs(
-            data,
-            NonZeroU32::new(60).expect("60 is non-zero"),
-            Box::new([]),
-            KeyboardState::default(),
-        )
-    }
+/// Shared set of keys currently held down by the window.
+pub type KeyboardState = Rc<RefCell<HashSet<Key>>>;
 
-    /// Create a runner with keyboard inputs and a configured simulation rate.
-    pub fn with_inputs(
+/// A keyboard-controlled circuit input.
+#[derive(Debug, Clone, Copy)]
+pub struct InputBinding {
+    /// Component index in the processing buffers
+    pub component: usize,
+
+    /// Key that controls this component
+    pub key: Key,
+
+    /// Value produced while the key is held
+    pub value: u32,
+}
+
+impl InputBinding {
+    #[inline]
+    pub fn new(component: usize, key: Key, value: u32) -> Self {
+        Self {
+            component,
+            key,
+            value,
+        }
+    }
+}
+
+impl Runner {
+    /// Create a runner with configured inputs, simulation rate, and optional WASM module.
+    pub fn new(
         data: RunnerData,
         tick_rate: NonZeroU32,
         input_bindings: List<InputBinding>,
         pressed_keys: KeyboardState,
+        wasm_module: Option<WasmModule>,
+        wasm_inputs: List<WasmBinding>,
+        wasm_outputs: List<WasmBinding>,
     ) -> Self {
         let tick_interval =
             Duration::from_secs_f64(1.0 / f64::from(tick_rate.get())).max(Duration::from_nanos(1));
+        let wasm = wasm_module.map(|module| WasmRunner {
+            module,
+            status: WasmStatus::Uninit,
+            inputs: wasm_inputs,
+            outputs: wasm_outputs,
+        });
         Self {
             data,
             input_bindings,
-            wasm: None,
+            wasm,
             pressed_keys,
             current_buffer: 0,
             tick_interval,
             tick_accumulator: tick_interval,
             last_tick: Instant::now(),
         }
-    }
-
-    /// Create a runner with a WASM module and its component bindings.
-    pub fn with_wasm(
-        data: RunnerData,
-        tick_rate: NonZeroU32,
-        input_bindings: List<InputBinding>,
-        pressed_keys: KeyboardState,
-        module: WasmModule,
-        outputs: List<WasmBinding>,
-        inputs: List<WasmBinding>,
-    ) -> Self {
-        let mut runner = Self::with_inputs(data, tick_rate, input_bindings, pressed_keys);
-        runner.wasm = Some(WasmRunner {
-            module,
-            initialized: false,
-            failed: false,
-            inputs,
-            outputs,
-        });
-        runner
     }
 }
 

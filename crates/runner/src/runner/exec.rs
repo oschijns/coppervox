@@ -1,7 +1,8 @@
 use crate::{
+    loader::wasm_module::CELL_SIZE,
     runner::{
         AllocBuffers, ComputeBinding, ComputeLayout, RenderBinding, RenderLayout, Runner,
-        RunnerGpuData,
+        RunnerGpuData, WasmStatus,
         bind_compute::{self, BIND_CONNECTIONS, BIND_INPUTS},
         bind_render::{self, BIND_INSTANCES_DATA, BIND_PROCESSED, BIND_PROJECTION},
     },
@@ -48,8 +49,8 @@ impl Material3d for Runner {
             &self.data.color_presets,
             &self.data.inits,
         );
-        let wasm_output_count = self.wasm.as_ref().map_or(0, |wasm| wasm.outputs.len());
-        Box::new(RunnerGpuData::new(&ctx, buffers, wasm_output_count))
+        let wasm_input_count = self.wasm.as_ref().map_or(0, |wasm| wasm.inputs.len());
+        Box::new(RunnerGpuData::new(&ctx, buffers, wasm_input_count))
     }
 
     /// Run configured simulation ticks before the scene is drawn
@@ -70,7 +71,11 @@ impl Material3d for Runner {
         if pass != 0 {
             return;
         }
-        if self.wasm.as_ref().is_some_and(|wasm| wasm.failed) {
+        if self
+            .wasm
+            .as_ref()
+            .is_some_and(|wasm| wasm.status == WasmStatus::Failure)
+        {
             return;
         }
 
@@ -114,7 +119,7 @@ impl Material3d for Runner {
                 } else {
                     0
                 };
-                let offset = (binding.component * size_of::<u32>()) as u64;
+                let offset = (binding.component * CELL_SIZE) as u64;
                 let bytes = bytemuck::bytes_of(&value);
                 for buffer in &gpu_data.buffers.ping_pong {
                     ctx.write_buffer(buffer, offset, bytes);
@@ -130,7 +135,7 @@ impl Material3d for Runner {
                 if let Err(error) = self.exchange_wasm_io(&ctx, gpu_data) {
                     eprintln!("WASM simulation stopped: {error}");
                     if let Some(wasm) = self.wasm.as_mut() {
-                        wasm.failed = true;
+                        wasm.status = WasmStatus::Failure;
                     }
                     return;
                 }
@@ -249,25 +254,25 @@ impl Runner {
             return Ok(());
         };
 
-        if !wasm.initialized {
+        if wasm.status == WasmStatus::Uninit {
             wasm.module.init()?;
-            wasm.initialized = true;
+            wasm.status = WasmStatus::Running;
         }
 
-        if !wasm.outputs.is_empty() {
+        if !wasm.inputs.is_empty() {
             let readback = gpu_data
                 .wasm_readback
                 .as_ref()
                 .ok_or(WasmTickError::MissingReadbackBuffer)?;
             let source = &gpu_data.buffers.ping_pong[self.current_buffer];
             let mut encoder = ctx.create_command_encoder(Some("wasm_io_readback"));
-            for (index, binding) in wasm.outputs.iter().enumerate() {
+            for (index, binding) in wasm.inputs.iter().enumerate() {
                 encoder.copy_buffer_to_buffer(
                     source,
-                    (binding.component * size_of::<u32>()) as u64,
+                    (binding.component * CELL_SIZE) as u64,
                     readback,
-                    (index * size_of::<u32>()) as u64,
-                    size_of::<u32>() as u64,
+                    (index * CELL_SIZE) as u64,
+                    CELL_SIZE as u64,
                 );
             }
             ctx.submit([encoder.finish()]);
@@ -283,10 +288,10 @@ impl Runner {
                 .map_err(|_| WasmTickError::ReadbackCallback)??;
 
             let mapped = slice.get_mapped_range();
-            for (index, binding) in wasm.outputs.iter().enumerate() {
-                let start = index * size_of::<u32>();
+            for (index, binding) in wasm.inputs.iter().enumerate() {
+                let start = index * CELL_SIZE;
                 let value = u32::from_le_bytes(
-                    mapped[start..start + size_of::<u32>()]
+                    mapped[start..start + CELL_SIZE]
                         .try_into()
                         .expect("each readback slot contains one u32"),
                 );
@@ -299,9 +304,9 @@ impl Runner {
         wasm.module.write_input()?;
         wasm.module.tick()?;
         wasm.module.read_output()?;
-        for binding in wasm.inputs.iter() {
+        for binding in wasm.outputs.iter() {
             let value = wasm.module.read_output_value(binding.slot)?;
-            let offset = (binding.component * size_of::<u32>()) as u64;
+            let offset = (binding.component * CELL_SIZE) as u64;
             let bytes = bytemuck::bytes_of(&value);
             for buffer in &gpu_data.buffers.ping_pong {
                 ctx.write_buffer(buffer, offset, bytes);
@@ -330,17 +335,17 @@ fn encode_compute_tick(
 
 impl RunnerGpuData {
     /// prepare a runner
-    pub fn new(ctx: &Context, buffers: AllocBuffers, wasm_output_count: usize) -> Self {
+    pub fn new(ctx: &Context, buffers: AllocBuffers, wasm_input_count: usize) -> Self {
         let layout_compute = ComputeLayout::new(ctx);
         let layout_render = RenderLayout::new(ctx);
         let compute_pipeline = bind_compute::create_compute_pipeline(ctx, &layout_compute);
         let render_pipeline = bind_render::create_render_pipeline(ctx, &layout_render);
         let compute = ComputeBinding::new(ctx, &layout_compute, &buffers);
         let render = RenderBinding::new(ctx, &layout_render, &buffers);
-        let wasm_readback = (wasm_output_count > 0).then(|| {
+        let wasm_readback = (wasm_input_count > 0).then(|| {
             ctx.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("wasm_io_readback"),
-                size: (wasm_output_count * size_of::<u32>()) as u64,
+                size: (wasm_input_count * CELL_SIZE) as u64,
                 usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             })

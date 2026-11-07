@@ -1,6 +1,6 @@
 use crate::import::import_model;
 use coppervox_runner::{
-    config::{identify::VoxelIdentifier, manifest::Manifest},
+    config::{component::CompType, identify::VoxelIdentifier, manifest::Manifest},
     loader::{
         converter::{Processing, RenderingData},
         processor::ProcessingData,
@@ -70,38 +70,42 @@ impl Construct {
         // Process the data to build the logic circuit and the rendered mesh
         let ordered = ProcessingData::make(&model, &vox_ident)?;
         let process = Processing::make(ordered.io_order(), ordered.connect());
-        let mut wasm_inputs = Vec::new();
-        let mut wasm_outputs = Vec::new();
-        let input_bindings = ordered
-            .io_order()
-            .components()
-            .iter()
-            .enumerate()
-            .filter_map(|(component, (_, comp_type))| match comp_type {
-                coppervox_runner::config::component::CompType::InputKey { key, value } => {
-                    Some(InputBinding {
-                        component,
-                        key: *key,
-                        value: *value,
-                    })
+
+        // Find IO connectors in the circuit
+        let count = ordered.count();
+        let mut input_bindings = Vec::with_capacity(count);
+        let mut wasm_inputs = Vec::with_capacity(count);
+        let mut wasm_outputs = Vec::with_capacity(count);
+
+        for (component, (i, comp_type)) in ordered.io_order().components().iter().enumerate() {
+            match comp_type {
+                CompType::InputKey { key, value } => {
+                    input_bindings.push(InputBinding::new(component, *key, *value));
                 }
-                coppervox_runner::config::component::CompType::WasmInput(slot) => {
+                CompType::WasmInput(slot) => {
                     wasm_inputs.push(WasmBinding::new(component, *slot));
-                    None
                 }
-                coppervox_runner::config::component::CompType::WasmOutput(slot) => {
+                CompType::WasmOutput(slot) => {
                     wasm_outputs.push(WasmBinding::new(component, *slot));
-                    None
                 }
-                _ => None,
-            })
-            .collect::<Box<[_]>>();
+                _ => {}
+            }
+        }
+
         match &wasm_module {
             Some(module) => {
+                println!("WASM MODULE:\n{}", module);
+                for binding in &wasm_inputs {
+                    println!("input slot: {}", binding.slot);
+                }
                 for binding in &wasm_outputs {
+                    println!("output slot: {}", binding.slot);
+                }
+
+                for binding in &wasm_inputs {
                     module.validate_input_slot(binding.slot)?;
                 }
-                for binding in &wasm_inputs {
+                for binding in &wasm_outputs {
                     module.validate_output_slot(binding.slot)?;
                 }
             }
@@ -163,18 +167,15 @@ impl Construct {
             process.initial_values.into_boxed_slice(),
         );
 
-        let runner = match wasm_module {
-            Some(module) => Runner::with_wasm(
-                data,
-                tick_rate,
-                input_bindings,
-                Rc::clone(&pressed_keys),
-                module,
-                wasm_outputs.into_boxed_slice(),
-                wasm_inputs.into_boxed_slice(),
-            ),
-            None => Runner::with_inputs(data, tick_rate, input_bindings, Rc::clone(&pressed_keys)),
-        };
+        let runner = Runner::new(
+            data,
+            tick_rate,
+            input_bindings.into_boxed_slice(),
+            Rc::clone(&pressed_keys),
+            wasm_module,
+            wasm_inputs.into_boxed_slice(),
+            wasm_outputs.into_boxed_slice(),
+        );
 
         Ok(Self {
             render_mesh: render.render_mesh,
