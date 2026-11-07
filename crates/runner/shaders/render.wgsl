@@ -82,8 +82,8 @@ fn vertex_main(vertex: ToVertex) -> ToFragment {
         case  1u: { out.color = colors.low;  }
         case MAX: { out.color = colors.high; }
         default: {
-            let t = f32(value) / f32(MAX);
-            out.color = smoothstep(colors.low, colors.high, vec4<f32>(t, t, t, t));
+            let blend = f32(value) / f32(MAX);
+            out.color = mix(colors.low, colors.high, blend);
         }
     }
 

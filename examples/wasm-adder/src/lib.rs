@@ -14,7 +14,16 @@ pub extern "C" fn init() -> u32 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn tick() -> u32 {
-    unsafe { BUFFER_O[0] = BUFFER_I[0] | BUFFER_I[1] };
+    let a = unsafe { BUFFER_I[0] } >= 0xFFFF;
+    let b = unsafe { BUFFER_I[1] } >= 0xFFFF;
+    let c = if a && b {
+        0xFFFFFFFF
+    } else if a || b {
+        0xFFFF
+    } else {
+        0
+    };
+    unsafe { BUFFER_O[0] = c };
     0
 }
 

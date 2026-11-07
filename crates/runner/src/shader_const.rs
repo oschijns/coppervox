@@ -77,13 +77,23 @@ impl From<ColorGradient> for GpuColorGradient {
     }
 }
 
-/// Converts an RGBA color to a GPU-compatible color array.
+/// Converts an sRGB color to a linear-light GPU color array.
 #[inline]
 fn to_gpu_color(color: RGB8) -> GpuVec4 {
+    let Rgb { r, g, b } = color;
+    [srgb_to_linear(r), srgb_to_linear(g), srgb_to_linear(b), 1.0]
+}
+
+#[inline]
+fn srgb_to_linear(channel: u8) -> f32 {
     const F: f32 = 1.0 / u8::MAX as f32;
 
-    let Rgb { r, g, b } = color;
-    [r as f32 * F, g as f32 * F, b as f32 * F, 1.0]
+    let value = channel as f32 * F;
+    if value <= 0.04045 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
+    }
 }
 
 #[repr(u32)]
@@ -133,5 +143,20 @@ impl GpuLayout {
     #[inline]
     pub const fn new(group: u32, binding: u32) -> Self {
         Self { group, binding }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_srgb_channels_to_linear_light() {
+        let color = to_gpu_color(RGB8::new(128, 0, 255));
+
+        assert!((color[0] - 0.21586).abs() < 0.00001);
+        assert_eq!(color[1], 0.0);
+        assert_eq!(color[2], 1.0);
+        assert_eq!(color[3], 1.0);
     }
 }

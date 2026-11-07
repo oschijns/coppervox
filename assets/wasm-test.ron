@@ -7,24 +7,21 @@ Manifest(
         components: {
             // Keyboard Inputs
             "#bbc840": (
-                type: INPUT_KEY(key: Q, value: 0xFFFFFFFF),
-                gradient: 0,
+                type: INPUT_KEY(key: Q, value: 0xFFFF),
+                gradient: (off: "#008800", low: "#888800", high: "#FFFF00"),
             ),
             "#b14863": (
-                type: INPUT_KEY(key: W, value: 0xFFFFFFFF),
-                gradient: 0,
+                type: INPUT_KEY(key: W, value: 0xFFFF),
+                gradient: (off: "#000088", low: "#008888", high: "#00FFFF"),
             ),
 
             // WASM IO
-            "#ede6c8": (type: WASM_INPUT (0), gradient: 0),
-            "#cd9373": (type: WASM_INPUT (1), gradient: 0),
-            "#8fbfd5": (type: WASM_OUTPUT(0), gradient: 0),
+            "#ede6c8": (type: WASM_INPUT (0), gradient: (off: "#000000", low: "#880000", high: "#FF0000")),
+            "#cd9373": (type: WASM_INPUT (1), gradient: (off: "#000000", low: "#008800", high: "#00FF00")),
+            "#8fbfd5": (type: WASM_OUTPUT(0), gradient: (off: "#000000", low: "#000088", high: "#0000FF")),
 
             // Display
-            "#313a91": (type: OR, gradient: 0),
+            "#313a91": (type: OR, gradient: (off: "#880000", low: "#880088", high: "#FFFFFF")),
         }
     ),
-    color_gradients: [
-        (off: "#111111", low: "#222222", high: "#FFFFFF"),
-    ]
 )
