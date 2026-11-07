@@ -46,10 +46,12 @@ pub enum CompType {
     /// Map a list of keys to a mask
     InputMask(Box<[Option<Key>; VALUE_SIZE]>),
 
-    /// The component receives a value from a WASM module
+    // TODO: Should we allow the user to define a type for the component ?
+    // OR, AND, MAX, ADD, MUL ?
+    /// The component sends a value to a WASM module
     WasmInput(u8),
 
-    /// The component sends a value to a WASM module
+    /// The component receives a value from a WASM module
     WasmOutput(u8),
 }
 

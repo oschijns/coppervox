@@ -235,9 +235,6 @@ pub struct RunnerGpuData {
     /// Pipeline used to run one simulation tick
     compute_pipeline: ComputePipeline,
 
-    /// Staging buffer for copying selected GPU outputs to the CPU.
-    wasm_readback: Option<Buffer>,
-
     /// Bind groups for the render pass
     render: RenderBinding,
 
@@ -264,6 +261,9 @@ pub struct AllocBuffers {
 
     /// Swapppable buffers for inputs and outputs
     ping_pong: [Buffer; 2],
+
+    /// Staging buffer for copying selected GPU outputs to the CPU.
+    wasm_readback: Buffer,
 }
 
 /// Define the layout for submitting the data to the compute shader

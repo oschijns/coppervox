@@ -19,6 +19,9 @@ Manifest(
             "#ede6c8": (type: WASM_INPUT (0), gradient: 0),
             "#cd9373": (type: WASM_INPUT (1), gradient: 0),
             "#8fbfd5": (type: WASM_OUTPUT(0), gradient: 0),
+
+            // Display
+            "#313a91": (type: OR, gradient: 0),
         }
     ),
     color_gradients: [

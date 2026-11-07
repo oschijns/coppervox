@@ -77,7 +77,7 @@ impl Construct {
         let mut wasm_inputs = Vec::with_capacity(count);
         let mut wasm_outputs = Vec::with_capacity(count);
 
-        for (component, (i, comp_type)) in ordered.io_order().components().iter().enumerate() {
+        for (component, (_, comp_type)) in ordered.io_order().components().iter().enumerate() {
             match comp_type {
                 CompType::InputKey { key, value } => {
                     input_bindings.push(InputBinding::new(component, *key, *value));

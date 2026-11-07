@@ -23,6 +23,7 @@ impl AllocBuffers {
         let store = BufferUsages::STORAGE;
         let uni = BufferUsages::UNIFORM | BufferUsages::COPY_DST;
         let io = BufferUsages::STORAGE | BufferUsages::COPY_SRC | BufferUsages::COPY_DST;
+        let io_slice = bytemuck::cast_slice(inits);
 
         Self {
             projection: ctx.create_buffer_init(
@@ -51,9 +52,14 @@ impl AllocBuffers {
                 store,
             ),
             ping_pong: [
-                ctx.create_buffer_init(Some("ping"), bytemuck::cast_slice(inits), io),
-                ctx.create_buffer_init(Some("pong"), bytemuck::cast_slice(inits), io),
+                ctx.create_buffer_init(Some("ping"), io_slice, io),
+                ctx.create_buffer_init(Some("pong"), io_slice, io),
             ],
+            wasm_readback: ctx.create_buffer_init(
+                Some("wasm_readback"),
+                io_slice,
+                BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            ),
         }
     }
 }

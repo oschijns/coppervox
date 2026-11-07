@@ -14,7 +14,7 @@ pub extern "C" fn init() -> u32 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn tick() -> u32 {
-    unsafe { BUFFER_O[0] = BUFFER_I[0] + BUFFER_I[1] };
+    unsafe { BUFFER_O[0] = BUFFER_I[0] | BUFFER_I[1] };
     0
 }
 

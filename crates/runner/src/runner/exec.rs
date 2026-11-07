@@ -31,9 +31,6 @@ enum WasmTickError {
 
     #[error("GPU readback callback disconnected")]
     ReadbackCallback,
-
-    #[error("GPU readback buffer was not allocated")]
-    MissingReadbackBuffer,
 }
 
 impl Material3d for Runner {
@@ -49,8 +46,7 @@ impl Material3d for Runner {
             &self.data.color_presets,
             &self.data.inits,
         );
-        let wasm_input_count = self.wasm.as_ref().map_or(0, |wasm| wasm.inputs.len());
-        Box::new(RunnerGpuData::new(&ctx, buffers, wasm_input_count))
+        Box::new(RunnerGpuData::new(&ctx, buffers))
     }
 
     /// Run configured simulation ticks before the scene is drawn
@@ -260,10 +256,7 @@ impl Runner {
         }
 
         if !wasm.inputs.is_empty() {
-            let readback = gpu_data
-                .wasm_readback
-                .as_ref()
-                .ok_or(WasmTickError::MissingReadbackBuffer)?;
+            let readback = &gpu_data.buffers.wasm_readback;
             let source = &gpu_data.buffers.ping_pong[self.current_buffer];
             let mut encoder = ctx.create_command_encoder(Some("wasm_io_readback"));
             for (index, binding) in wasm.inputs.iter().enumerate() {
@@ -335,26 +328,17 @@ fn encode_compute_tick(
 
 impl RunnerGpuData {
     /// prepare a runner
-    pub fn new(ctx: &Context, buffers: AllocBuffers, wasm_input_count: usize) -> Self {
+    pub fn new(ctx: &Context, buffers: AllocBuffers) -> Self {
         let layout_compute = ComputeLayout::new(ctx);
         let layout_render = RenderLayout::new(ctx);
         let compute_pipeline = bind_compute::create_compute_pipeline(ctx, &layout_compute);
         let render_pipeline = bind_render::create_render_pipeline(ctx, &layout_render);
         let compute = ComputeBinding::new(ctx, &layout_compute, &buffers);
         let render = RenderBinding::new(ctx, &layout_render, &buffers);
-        let wasm_readback = (wasm_input_count > 0).then(|| {
-            ctx.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("wasm_io_readback"),
-                size: (wasm_input_count * CELL_SIZE) as u64,
-                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            })
-        });
         Self {
             buffers,
             compute,
             compute_pipeline,
-            wasm_readback,
             render,
             render_pipeline,
         }

@@ -55,7 +55,21 @@ impl GpuOp {
             CompType::Mul  => Self::Mul,
             CompType::Min  => Self::Min,
             CompType::Max  => Self::Max,
+            CompType::WasmInput(_) => Self::Max,
             _ => Self::None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wasm_input_uses_or_to_combine_connected_values() {
+        assert_eq!(
+            GpuOp::from_type(&CompType::WasmInput(0)) as u32,
+            GpuOp::Max as u32
+        );
     }
 }
